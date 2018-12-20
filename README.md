@@ -8,10 +8,11 @@
 This repo contains the output of my efforts to learn Bayesian data
 analysis as presented in the splendid texbook "Statistical Rethinking"
 by Richard McElreath <http://xcelab.net/rm/statistical-rethinking/>.
-In my opinion, this book is a fantastic introduction to statistical
-data analysis.  It blends history and philosophy of science with
-technical matter, in order to train empirical scientists in the
-techniques, strengths, weaknesses, and risks of statistical modeling.
+In my opinion, this book (combined with Richard's YouTube lecture
+videos) is a fantastic introduction to statistical data analysis.  It
+blends history and philosophy of science with technical matter, in
+order to train empirical scientists in the techniques, strengths,
+weaknesses, and risks of statistical modeling.
 
 
 The textbook teaches students how to use the R programming language to
@@ -20,12 +21,11 @@ more complicated.  I was curious how far I could get implementing the
 systems from this text in the Racket dialect of Scheme. 
 
 R has been around for some time, has focused specifically on data
-analysis, and has acquired a community and substantial mindshare, so
-it's libraries are well-tuned to this work.  Racket is not nearly as
-widely used for data analysis (it's far more used for teaching
-introductory computer science).  Luckily a few trailblazers have gone
-this route in the past, leaving behind some artifacts that I could use
-along the way.
+analysis, and has acquired a broad, deep community and substantial
+mindshare.  It's libraries are well-tuned to this work.  Racket is not
+nearly as widely used for data analysis.  Luckily for me a few
+trailblazers have gone this route in the past, leaving behind some
+artifacts that I could use along the way.
 
 A guide to the core files (in conceptual order):
 
@@ -118,9 +118,9 @@ making the code here easier to get running.
     distribution.  I munged the code a bit to overcome bitrot.
 	<https://github.com/danking/racket-ml>
 
-	* cholesky.rkt - I used a variant of this implementation
-      to replace the broken
-	  <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
+	* cholesky.rkt - I used a variant of this Rosetta Code
+      implementation to replace the bit-rotted version in racket-ml.
+      <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
     * dynamic-multivariate-normal.rkt - A hacked version of
       multivariate-normal.rkt.  Stop-gap until I figure out how to fix
       the typed-racket code.  Dump this file in racket-ml
@@ -138,7 +138,8 @@ making the code here easier to get running.
   educational, and a source of at least one quite precise easy-to-implement
   reference implementation to compare against grid approximation.
   Used successfully in globe.rkt.  Used unsuccessfully in heights.rkt
-  (I didn't get back even one pdf value after many minutes of waiting).
+  (I didn't get back even one pdf value after many minutes of waiting,
+  but that could be my error).
 
 	* <https://github.com/mkierzenka/Racket_NumericalMethods>
 
