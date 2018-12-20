@@ -6,6 +6,8 @@
 ;; Date: 26 Nov 2018
 ;;
 
+(require (only-in "utils.rkt" with-arity-of))
+
 (provide gradient scalar-gradient hessian hessian->covariance)
 
 (module+ test
@@ -18,24 +20,6 @@
 ;; Helpers
 ;;
 
-;; produce a copy of f that inherits the arity of f0 
-(define (with-arity-of f0 f)
-  (let ([arity (procedure-arity f0)])
-    (procedure-reduce-arity f arity)))
-
-(module+ test
-  (let ([f0 (λ () 0)]
-        [f1 (λ (x) 0)]
-        [f2 (λ (x y) 0)]
-        [f* (λ x* 0)])
-    (check-equal? (procedure-arity (with-arity-of f0 f*))
-                  (procedure-arity f0))
-    (check-equal? (procedure-arity (with-arity-of f1 f*))
-                  (procedure-arity f1))
-    (check-equal? (procedure-arity (with-arity-of f2 f*))
-                  (procedure-arity f2))
-    (check-equal? (procedure-arity (with-arity-of f* f*))
-                  (procedure-arity f*))))
   
 ;; "infinitesimal" perturbation for differentiation
 ;; This is the value that TI-8X calculators used.
