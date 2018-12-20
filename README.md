@@ -78,6 +78,8 @@ A guide to the helper files:
 
   * utils.rkt - Some utility functions that have arisen during
     developments.  Factored out to a separate file.
+	
+  * images/ - Some screenshots of using the code and some helpful plots.
       
 Some random extra files:  not directly related to McElreath's text,
 but here are other related probability and stats files that may be of
