@@ -384,8 +384,9 @@
   ;; produce unit-normalized posterior
   (define (make-updf nnlp mode)
     (let ([mx (apply nnlp mode)])
-      (λ x*
-        (exp (- (apply nnlp x*) mx)))))
+      (with-arity-of nnlp
+        (λ x*
+        (exp (- (apply nnlp x*) mx))))))
     
   ;; for comparison: unit-normalized posterior
   (define unpostf20 (make-updf lnpf20 modef20))
