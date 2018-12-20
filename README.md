@@ -59,24 +59,19 @@ A guide to the helper files:
     I learned to read the manuals, but maybe useful for reference and
     learning. 
   
-  * cholesky.rkt - Cholesky decomposition, used as a hacky patch to
-    racket-ml's multivariate normal distribution, since I don't know
-    Typed Racket, and this code was much simpler.
-	depends on racket-ml package (patched to fight some bit rot)
-	  * <https://github.com/danking/racket-ml>
-	  * <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
-	
   * laplace-approx.rkt - Laplacian quadratic approximation of
     distributions using normal distributions.  In essence this is
     McElreath's map/quap function reimplemented in Racket.  Depends on
     nlopt Racket package (patched to fix some bugs), which in turn
-    depends on the NLopt C library.
+    depends on the NLopt C library, as well as racket-ml.
 	  * <https://github.com/jkominek/nlopt>
 	  * <https://nlopt.readthedocs.io/en/latest/>
+	  * <https://github.com/danking/racket-ml>
 
   * diff.rkt - Function differentiation tools.  This is primarily used
     to numerically approximate Hessians, which are used for Laplacian
-    quadratic approximation.
+    quadratic approximation.  Partly inspired by an example
+    differentiation routine from the Racket documentation.
 	
   * summaries.rkt - Functions to compute summary statistics, either
     from samples or from a grid-based posterior approximation
@@ -115,18 +110,11 @@ making the code here easier to get running.
 
   * racket-ml - a set of tools by Dan King for machine learning.  I
     specifically use code here for a multivariate normal
-    distribution.  I munged the code a bit to overcome bitrot.
+    distribution.  I munged the code a bit to overcome bitrot (see
+    pull requests at github).
 
     * <https://github.com/danking/racket-ml>
-	* cholesky.rkt - I used a variant of this Rosetta Code
-      implementation to replace the bit-rotted version in racket-ml.
-
-      * <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
 	  
-    * dynamic-multivariate-normal.rkt - A hacked version of
-      multivariate-normal.rkt.  Stop-gap until I figure out how to fix
-      the typed-racket code.  Dump this file in racket-ml
-
   * Racket-nlopt - wraps the NLOpt C library for optimizing functions.
     Some patches made (see pull requests on github). Depends on the C
     library.  Available via `raco pkg install nlopt` or on github.

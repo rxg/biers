@@ -8,7 +8,7 @@
 (require nlopt/unsafe) ;; low-level interface
 (require math/flonum)
 (require "diff.rkt") ;; function differentiation
-(require "racket-ml/dynamic-multivariate-normal.rkt") ;; normal distribution
+(require "racket-ml/multivariate-normal.rkt") ;; normal distribution
 (require math/distributions) ;; for uniform-dist
 (require math/matrix)
 (require ffi/unsafe)
