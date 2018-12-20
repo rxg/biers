@@ -116,18 +116,20 @@ making the code here easier to get running.
   * racket-ml - a set of tools by Dan King for machine learning.  I
     specifically use code here for a multivariate normal
     distribution.  I munged the code a bit to overcome bitrot.
-	<https://github.com/danking/racket-ml>
 
+    * <https://github.com/danking/racket-ml>
 	* cholesky.rkt - I used a variant of this Rosetta Code
       implementation to replace the bit-rotted version in racket-ml.
-      <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
+
+      * <https://rosettacode.org/wiki/Cholesky_decomposition#Racket>
+	  
     * dynamic-multivariate-normal.rkt - A hacked version of
       multivariate-normal.rkt.  Stop-gap until I figure out how to fix
       the typed-racket code.  Dump this file in racket-ml
 
   * Racket-nlopt - wraps the NLOpt C library for optimizing functions.
     Some patches made (see pull requests on github). Depends on the C
-    library. 
+    library.  Available via `raco pkg install nlopt` or on github.
 	
 	* <https://github.com/jkominek/nlopt> 
     * <https://nlopt.readthedocs.io/en/latest/> 
@@ -144,7 +146,7 @@ making the code here easier to get running.
 	* <https://github.com/mkierzenka/Racket_NumericalMethods>
 
   * For experimentation, I recommend Alex Knauth's debug language for
-    tracing intermediate executions.  Available via 'raco pkg install
-    debug' or on github.
+    tracing intermediate executions.  Available via 
+	`raco pkg install debug` or on github.
 	
 	* <https://github.com/AlexKnauth/debug>
