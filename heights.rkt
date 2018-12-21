@@ -7,7 +7,7 @@
 (require racket/vector) ;; for vector-take
 
 ;;
-;; heights.rkt - Inference of height data
+;; heights.rkt - Inference over height data
 ;;  Based on McElreath, Statistical Rethinking, Chapter 3
 ;;
 ;; Author: Ron Garcia <rxg@cs.ubc.ca>
@@ -25,6 +25,31 @@
       h_i)))
 
 ;; Query the generative model to visualize the distribution
+
+;; math/plot's density function produces and plots a continuous
+;; density function that was estimated from a list of samples. See
+;;   https://en.wikipedia.org/wiki/Density_estimation
+;; for the general idea.
+;;
+;; I do not know the basis for this particular implementation, but based on
+;; the docs, it appears to use Gaussian kernel smoothing:
+;;   https://en.wikipedia.org/wiki/Kernel_density_estimation
+;;
+;; For comparison, See R's density function
+;;   https://www.rdocumentation.org/packages/stats/versions/3.5.1/topics/density
+;; as well as it's options for choosing a bandwidth:
+;; https://www.rdocumentation.org/packages/stats/versions/3.5.1/topics/bandwidth
+;;
+;; The R manual page for density recommends calculating bandwidth using
+;;     the method "SJ" of:
+;;     Sheather, S. J. and Jones, M. C. (1991). A reliable data-based bandwidth
+;;         selection method for kernel density estimation.
+;;         Journal of the Royal Statistical Society series B, 53, 683--690.
+;;         http://www.jstor.org/stable/2345597.
+;;  though R's default, for historical purposes, is "Silverman's rule of thumb":
+;;  Silverman, B. W. (1986). Density Estimation. London: Chapman and Hall.
+;;
+;; Racket appears to use a method related to R's bw.nrd.
 #;
 (plot (density (for/list ([i (range 1000)]) (model)) 2))
 
@@ -36,9 +61,9 @@
 ;; Experimenting with csv-reading and data-frame  Racket packages
 ;; (unfortunately the data-frame package's csv facilities are pretty weak)
 ;;
-;; to load:
+;; to load from the REPL or another module:
 ;; (require (submod "heights.rkt" howell))
-;; or in-file:
+;; or to load within this file::
 ;; (require (submod "." howell))
 
 (module howell racket
@@ -144,14 +169,31 @@
 ;; Inference Engine
 
 ;; Random variables:
-;; h* = (list h_i ...) : individual height samples
-;;      (assume independent, identically distributed)
-;; μ : mean height
-;; σ : standard deviation
+;; h* = (list h_i ...) : individual height samples (in cm)
+;;      (assume independent, identically distributed (i.i.d.))
+;; μ : mean height (in cm)
+;; σ : standard deviation (in cm)
 
-;; Somehow we invert on all of the data, individual values h_i?
-;; I'm guessing that this is going to be analogous to the urn model:
-;; Independent, identically distributed random variables.
+;; Statistical Model
+;; I = sample size (not random)
+;; { h_i ∼ Normal(μ,σ) } for i ∈ I (implies i.i.d.)
+;;                     (mathematically models "regression to the mean"?
+;;                      Regession to the mean is an *empirical* phenomenon that
+;;                      models should account for to enable good inferences.)
+;; μ ∼ Normal(178,20) (McElreath is 178cm tall
+;;                     96% weight on the mean being in 178 ± 3·20 (so [118,238])
+;;                     Normal prior on mean height weighs against extreme means
+;;                     Data must be overwhelming to move the mean to extremes.)
+;; σ ∼ Uniform(0,50)  (standard deviation of heights is SOMEWHERE in [0,50])
+;;                     so "negligible" (but non-zero) probability density
+;;                     on negative heights (i.e. impossible heights)
+;;                     Now that we have computers, can we force it to zero?
+;;                     Maybe! see Truncated Gaussian and Rectified Gaussian on
+;;                     Wikipedia. How to use responsibly?)
+
+;; We perform inference on all of the data, the individual values h_i.
+;; This is going to be analogous to the urn model: we can do it all at once
+;; since h_i are assumed to be i.i.d.
 
 ;; prior is 2-dimensional: P(μ,σ|Γ) (using Γ to expose open-ended assumptions)
 ;; Assume μ,σ independent: P(μ,σ|Γ) = P(μ|Γ)P(σ|Γ)
