@@ -211,9 +211,9 @@
     (cmb (μ-pdf μ log?) (σ-pdf σ log?))))
 
 ;; Let's graph the prior pdf in 3D!
-;; Include 2 std-dev for μ; extend σ past the support values
+;; Include 4 std-dev for μ; extend σ past the support values
 #;
-(plot3d (surface3d prior-pdf 138 218 -5 55))
+(plot3d (surface3d prior-pdf 98 258 -5 55))
 
 
 ;; multi-observation (log-)likelihood (Γ makes the relativity of prior explicit)
