@@ -34,9 +34,8 @@ A guide to the core files (in conceptual order):
     drawing balls from it, recording their color, and replacing them.
 	
   * urn-abuse.rkt - Trolling the urn model: what happens when you use
-    the urn model to reason about idealized coin tosses data
-    (i.e. what happens when your model poorly matches up with your
-    data)?
+    the urn model to reason about idealized coin toss data (i.e. what
+    happens when your model poorly matches up with your data)?
 		
   * globe.rkt - From Chapter 2: moving to continuous parameter values,
 	reason about the proportion of water covering the earth by tossing
