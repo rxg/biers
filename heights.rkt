@@ -5,7 +5,7 @@
 (require math/distributions)
 (require "Racket_NumericalMethods/Numerical_Integration.rkt")
 (require racket/vector) ;; for vector-take
-
+(require (only-in "utils.rkt" with-arity-of))
 ;;
 ;; heights.rkt - Inference over height data
 ;;  Based on McElreath, Statistical Rethinking, Chapter 3
@@ -224,15 +224,39 @@
               ([h_i h*])
       (* (joint-i cprob prior h_i μ σ) p)))
 
+
+;; when combining probabilities, use multiplication;
+;; when combining log-probabilities, use multiplication
+(define (merge-pdf [log? #f])
+  (if log? + *))
+
 ;; A bit more streamlined
 ;; and can now produce log distribution
-(define (joint cprob prior h* μ σ [log? #f])
+#;(define (joint cprob prior h* μ σ [log? #f])
   (define unit (if log? 0.0 1.0))
   (define cmb (if log? + *))
   (for/fold ([p unit])
             ([h_i h*])
     (cmb (cprob h_i μ σ log?) (prior μ σ log?) p)))
 
+;; TAKE 3:  don't factor in the prior for EACH DATA POINT!  They are
+;; conditionally independent wrt μ and σ (by assumption)
+(define (joint-likelihood cprob h* μ σ [log? #f])
+  (define cmb (merge-pdf log?))
+  (for/fold ([p-acc (sequence-ref h* 0)])
+            ([h_i (sequence-tail h* 1)])
+    (cmb (cprob h_i μ σ log?) p-acc)))
+
+
+(define (correct-joint cprob prior h* μ σ [log? #f])
+  (define cmb (merge-pdf log?))
+  (cmb (joint-likelihood cprob h* μ σ log?) (prior μ σ log?)))
+
+(define (make-correct-nnpost h* [log? #f])
+  (define (cprob h_i μ σ log?)
+    (pdf (normal-dist μ σ) h_i log?))
+  (λ (μ σ)
+    (correct-joint cprob prior-pdf h* μ σ log?)))
 
 ;; RG: I THINK THAT THE FOLLOWING IS WRONG!
 
@@ -247,7 +271,7 @@
 ;; P(h*,μ,σ) =  P(h*|μ,σ)P(μ,σ) = (Π_i P(h_i|μ,σ))P(μ)P(σ)
 
 ;; non-normalized posterior
-(define (make-post h* [log? #f])
+#;(define (make-post h* [log? #f])
   (λ (μ σ)
     (joint
      (λ (h_i μ σ log?)
@@ -399,9 +423,9 @@
 ;; WARNING:  nlopt still a bit broken, possible memory safety error!
 ;;
 
-#;
+
 (begin
-  (require (submod #;"." "heights.rkt" howell))
+  (require (submod "." #;"heights.rkt" howell))
   (require "laplace-approx.rkt")
 
   ;;
@@ -416,7 +440,7 @@
 
   ;(define post-20 (fit-heights first-20-heights 150 170 4 20))
   ;; non-normalized log posterior (compositionally constructed)
-  (define lnpf20 (make-post first-20-heights 'log))
+  (define lnpf20 (make-correct-nnpost first-20-heights 'log))
   (define laf20 (laplace-approx lnpf20 '((150 170) (4 20))))
   (define modef20 (lapprox-means laf20))
   (define qpdff20 (lapprox-pdf laf20))
@@ -441,7 +465,7 @@
   ;;
   
   ;; non-normalized log posterior (compositionally constructed)
-  (define lnp (make-post adult-heights 'log))
+  (define lnp (make-correct-nnpost adult-heights 'log))
   (define la (laplace-approx lnp '((150 170) (4 20)))) 
   (define mode (lapprox-means la))
 
