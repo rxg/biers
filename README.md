@@ -119,11 +119,11 @@ making the code here easier to get running.
 
     * <https://github.com/danking/racket-ml>
 	  
-  * Racket-nlopt - wraps the NLOpt C library for optimizing functions.
-    Some patches made (see pull requests on github). Depends on the C
+  * Racket nlopt - wraps the NLOpt C library for optimizing functions.
+    Some patches made (see pull requests on github). Depends on the NLOpt C
     library.  Available via `raco pkg install nlopt` or on github.
 	
-	* <https://github.com/jkominek/nlopt> 
+    * <https://github.com/jkominek/nlopt> 
     * <https://nlopt.readthedocs.io/en/latest/> 
 
   * Racket_NumericalMethods - I use the adaptive numerical integration
