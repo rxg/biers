@@ -248,7 +248,7 @@
 
 
 ;; double-integration?  No, not so much.
-(define (avg-likelihood h*)
+(define (marginal h*)
   (adaptive-integrate
    (λ (μ)
      (adaptive-integrate 
@@ -259,7 +259,7 @@
 
 (define (posterior μ σ h*)
   (/ (nnjoint h* μ σ)
-     (avg-likelihood h*)))
+     (marginal h*)))
 
 
 
