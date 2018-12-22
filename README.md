@@ -1,4 +1,4 @@
-# Biers: Bayesian Inference Engines that Rethink Statistics #
+# Biers: Bayesian Inference Engines for Rethinking Statistics #
 
 > "Give me some beers and I'll give you an impromptu lecture about
 > that some time."
