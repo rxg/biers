@@ -195,9 +195,15 @@
 ;; This is going to be analogous to the urn model: we can do it all at once
 ;; since h_i are assumed to be i.i.d.
 
-;; prior is 2-dimensional: P(μ,σ|Γ) (using Γ to expose open-ended assumptions)
+;; parameterized "merge densities" operation
+;; when combining probabilities, use multiplication;
+;; when combining log-probabilities, use addition
+(define (merge-d [log? #f])
+  (if log? + *))
+
+;; prior (log-)density
+;; prior is 2-dimensional: P(μ,σ|Γ) (Γ embodies initial knowledge)
 ;; Assume μ,σ independent: P(μ,σ|Γ) = P(μ|Γ)P(σ|Γ)
-;; can now produce log distribution too!
 (define (prior-pdf μ σ [log? #f])
   (define cmb (if log? + *))
   (let ([σ-pdf (distribution-pdf (uniform-dist 0 50))]
@@ -205,58 +211,34 @@
     (cmb (μ-pdf μ log?) (σ-pdf σ log?))))
 
 ;; Let's graph the prior pdf in 3D!
-;; Going out 2 std-dev on μ
-;; Going past 50 on σ 
+;; Include 2 std-dev for μ; extend σ past the support values
 #;
-(plot3d (surface3d prior-pdf 138 218 0 60))
+(plot3d (surface3d prior-pdf 138 218 -5 55))
 
 
-;; single-joint
-;; P(h_i,μ,σ|Γ) = P(h_i|μ,σ,Γ)P(μ,σ|Γ)
-;; conditionally independent likelihood assumption: = P(h_i|μ,σ)P(μ,σ|Γ)
-#;(define (joint-i cprob prior h_i μ σ)
-    (* (cprob h_i μ σ) (prior μ σ)))
-
-;; multi-joint
-;; P(h*,μ,σ|Γ) = Π_i P(h_i,μ,σ|Γ)
-#;(define (joint cprob prior h* μ σ)
-    (for/fold ([p 1.0])
-              ([h_i h*])
-      (* (joint-i cprob prior h_i μ σ) p)))
-
-
-;; when combining probabilities, use multiplication;
-;; when combining log-probabilities, use multiplication
-(define (merge-pdf [log? #f])
-  (if log? + *))
-
-;; A bit more streamlined
-;; and can now produce log distribution
-#;(define (joint cprob prior h* μ σ [log? #f])
-  (define unit (if log? 0.0 1.0))
-  (define cmb (if log? + *))
-  (for/fold ([p unit])
-            ([h_i h*])
-    (cmb (cprob h_i μ σ log?) (prior μ σ log?) p)))
-
-;; TAKE 3:  don't factor in the prior for EACH DATA POINT!  They are
-;; conditionally independent wrt μ and σ (by assumption)
-(define (joint-likelihood cprob h* μ σ [log? #f])
-  (define cmb (merge-pdf log?))
+;; multi-observation (log-)likelihood (Γ makes the relativity of prior explicit)
+;; P(h*|μ,σ,Γ) = Π_i P(h_i|μ,σ,Γ)
+(define (aggregate-likelihood h* μ σ [log? #f])
+  (define dist (normal-dist μ σ))
+  ;; P(h_i,μ,σ|Γ) - single-observation likelihood
+  (define (likelihood h_i) (pdf dist h_i log?))
+  (define cmb (merge-d log?))
   (for/fold ([p-acc (sequence-ref h* 0)])
             ([h_i (sequence-tail h* 1)])
-    (cmb (cprob h_i μ σ log?) p-acc)))
+    (cmb (likelihood h_i) p-acc)))
 
 
-(define (correct-joint cprob prior h* μ σ [log? #f])
-  (define cmb (merge-pdf log?))
-  (cmb (joint-likelihood cprob h* μ σ log?) (prior μ σ log?)))
+;; joint (log-)probability density (modulo initial prior knowledge Γ)
+;; P(h*μ,σ|Γ) = P(h*|μ,σ,Γ)P(μ,σ|Γ)
+(define (nnjoint prior h* μ σ [log? #f])
+  (define cmb (merge-d log?))
+  (cmb (aggregate-likelihood h* μ σ log?) (prior μ σ log?)))
 
-(define (make-correct-nnpost h* [log? #f])
-  (define (cprob h_i μ σ log?)
-    (pdf (normal-dist μ σ) h_i log?))
+;; curried version of joint
+(define (make-joint h* [log? #f])
   (λ (μ σ)
-    (correct-joint cprob prior-pdf h* μ σ log?)))
+    (nnjoint prior-pdf h* μ σ log?)))
+
 
 ;; RG: I THINK THAT THE FOLLOWING IS WRONG!
 
@@ -267,16 +249,7 @@
   (let ([h-pdf (distribution-pdf (normal-dist μ σ))])
     (apply * (for/list ([h h*]) (h-pdf h)))))
 
-;; Joint Distribution
-;; P(h*,μ,σ) =  P(h*|μ,σ)P(μ,σ) = (Π_i P(h_i|μ,σ))P(μ)P(σ)
 
-;; non-normalized posterior
-#;(define (make-post h* [log? #f])
-  (λ (μ σ)
-    (joint
-     (λ (h_i μ σ log?)
-       (pdf (normal-dist μ σ) h_i log?))
-     prior-pdf h* μ σ log?)))
   
 
 ;;
@@ -420,12 +393,11 @@
 
 ;;
 ;; Laplace Approximation
-;; WARNING:  nlopt still a bit broken, possible memory safety error!
 ;;
 
-
+#;
 (begin
-  (require (submod "." #;"heights.rkt" howell))
+  (require (submod #;"." "heights.rkt" howell))
   (require "laplace-approx.rkt")
 
   ;;
@@ -440,11 +412,11 @@
 
   ;(define post-20 (fit-heights first-20-heights 150 170 4 20))
   ;; non-normalized log posterior (compositionally constructed)
-  (define lnpf20 (make-correct-nnpost first-20-heights 'log))
-  (define laf20 (laplace-approx lnpf20 '((150 170) (4 20))))
+  (define lnpf20 (make-joint first-20-heights 'log))
+  (define laf20 (laplace-approx lnpf20 '((140 160) (4 20))))
   (define modef20 (lapprox-means laf20))
   (define qpdff20 (lapprox-pdf laf20))
-  (define qp3df20 (plot3d (surface3d qpdff20 150 170 4 20)))
+  (define qp3df20 (plot3d (surface3d qpdff20 140 160 4 20)))
 
   ;; given non-normalized log posterior and mode,
   ;; produce unit-normalized posterior
@@ -456,7 +428,7 @@
     
   ;; for comparison: unit-normalized posterior
   (define unpostf20 (make-updf lnpf20 modef20))
-  (define unp3df20 (plot3d (surface3d unpostf20 150 170 4 20)))
+  (define unp3df20 (plot3d (surface3d unpostf20 140 160 4 20)))
 
   #;(list qp3df20 unp3df20) ;; to see them juxtaposed
 
@@ -465,16 +437,16 @@
   ;;
   
   ;; non-normalized log posterior (compositionally constructed)
-  (define lnp (make-correct-nnpost adult-heights 'log))
-  (define la (laplace-approx lnp '((150 170) (4 20)))) 
+  (define lnp (make-joint adult-heights 'log))
+  (define la (laplace-approx lnp '((140 160) (4 20)))) 
   (define mode (lapprox-means la))
 
   (define qpdf (lapprox-pdf la))
-  (define qp3d (plot3d (surface3d qpdf 156 160 7 11))) ;; much tighter!
+  (define qp3d (plot3d (surface3d qpdf 153 157 7 11))) ;; much tighter!
 
   ;; for comparison: non-normalized posterior
   (define unpost (make-updf lnp mode))
-  (define unp3d (plot3d (surface3d unpost 156 160 7 11)))
+  (define unp3d (plot3d (surface3d unpost 153 157 7 11)))
 
   #;(list qp3d unp3d) ;; to see them juxtaposed
   (void))
