@@ -62,8 +62,10 @@ A guide to the helper files:
   * laplace-approx.rkt - Laplacian quadratic approximation of
     distributions using normal distributions.  In essence this is
     McElreath's map/quap function reimplemented in Racket.  Depends on
-    nlopt Racket package (patched to fix some bugs), which in turn
-    depends on the NLopt C library, as well as racket-ml.
+    nlopt Racket package (patched to fix some bugs, see pull
+    requests), which in turn depends on the NLopt C library, as well
+    as racket-ml.
+
 	  * <https://github.com/jkominek/nlopt>
 	  * <https://nlopt.readthedocs.io/en/latest/>
 	  * <https://github.com/danking/racket-ml>
