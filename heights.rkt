@@ -238,18 +238,6 @@
 (define (make-joint h* [log? #f])
   (λ (μ σ)
     (nnjoint prior-pdf h* μ σ log?)))
-
-
-;; RG: I THINK THAT THE FOLLOWING IS WRONG!
-
-;; Likelihood function for all the heights
-;; heights are independent and identically distributed
-;; P(h* | μ,σ) = Π_i P(h_i|μ,σ)
-(define (likelihood h* μ σ)
-  (let ([h-pdf (distribution-pdf (normal-dist μ σ))])
-    (apply * (for/list ([h h*]) (h-pdf h)))))
-
-
   
 
 ;;
@@ -265,12 +253,12 @@
    (λ (μ)
      (adaptive-integrate 
       (λ (σ)
-        (likelihood h* μ σ))
+        (nnjoint h* μ σ))
       0 50 .1)) ;; range of the uniform distribution
    120 240 .1)) ;; roughly 3σ range around the mean
 
 (define (posterior μ σ h*)
-  (/ (likelihood h* μ σ)
+  (/ (nnjoint h* μ σ)
      (avg-likelihood h*)))
 
 
