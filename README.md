@@ -47,8 +47,9 @@ A guide to the core files (in conceptual order):
 	interrogate the model after (and before) fitting it to data.
 	
   * heights.rkt - From Chapter 4: fit adult human height data to a
-    normal distribution model; use a linear regression model to reason
-    about how adult human weight can predict human height.
+    normal distribution model; [COMING SOON!] use a linear regression
+    model to reason about how adult human weight can predict human
+    height.
 	
 
 A guide to the helper files:
