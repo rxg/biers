@@ -317,7 +317,7 @@
                    (exp (- (vector-ref p 2) max-prod))))))]
     prob*))
 
-(define (plot-μσ-posterior prob*)
+(define (plot-μσ-grid-posterior prob*)
   (plot3d
    (points3d prob* #:size 1)
    #:title "Posterior Normal Distribution of Heights in cm (Howell Data)"
@@ -328,24 +328,25 @@
 ;; Example Fit
 #;
 (begin
-  (require (submod "." howell))
+  (require (submod "." #;"heights.rkt" howell))
   ;; grab the first 20 adult heights, just to get started
   (define first-20-heights (in-vector adult-heights 0 20))
-  (define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
+  #;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
   (define post-20 (fit-heights first-20-heights 150 170 4 20))
-  (define post (fit-heights adult-heights 153 156 6 9))
-  (map plot-μσ-posterior (list post-20 post))
+  (define post-adults (fit-heights adult-heights 153 156 6 9))
+  (map plot-μσ-grid-posterior (list post-20 post-adults))
   ;; Sample from the posterior
-  (define-values (μσ* w)
-    (for/lists (uss w) ([p post]) (values (vector-take p 2) (vector-ref p 2))))
-  (define post-dist (discrete-dist μσ* w))
-  (define s* (sample post-dist 10000))
+  (define-values (μσ-20* w-20)
+    (for/lists (uss w) ([p post-adults])
+      (values (vector-take p 2) (vector-ref p 2))))
+  (define post-dist-20 (discrete-dist μσ-20* w-20))
+  (define s-20* (sample post-dist-20 10000))
   (void))
 
 ;; Example of drawing samples from the posterior
 #;
 (begin
-  (require (submod "." howell))
+  (require (submod "." #;"heights.rkt" howell))
   (define post (fit-heights adult-heights 153 156 6 9))
   (define-values (μσ* w)
     (for/lists (uss w) ([p post]) (values (vector-take p 2) (vector-ref p 2))))
@@ -362,7 +363,7 @@
 ;;  Repeating the same, but with only 20 samples so as to inspect sigma
 #;
 (begin
-  (require (submod "." howell))
+  (require (submod "." #;"heights.rkt" howell))
   (define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
   (define post (fit-heights random-20-heights 150 170 4 20))
   (define-values (μσ* w)
