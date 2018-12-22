@@ -64,7 +64,7 @@ A guide to the helper files:
     McElreath's map/quap function reimplemented in Racket.  Depends on
     nlopt Racket package (patched to fix some bugs, see pull
     requests), which in turn depends on the NLopt C library, as well
-    as racket-ml.
+    as racket-ml (also see pull requests).
 
 	  * <https://github.com/jkominek/nlopt>
 	  * <https://nlopt.readthedocs.io/en/latest/>
