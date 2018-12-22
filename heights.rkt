@@ -262,11 +262,6 @@
      (marginal h*)))
 
 
-
-
-  
-;; From here I can do grid sampling...
-
 ;;
 ;; Grid Sampling
 ;;
@@ -276,10 +271,10 @@
 (define (seq lo hi size)
   (range lo hi (/ (- hi lo) size)))
 
-
+;; grid log posterior as per R code 4.14 of McElreath
 (define (fit-heights h* μ-lo μ-hi σ-lo σ-hi)
   (local
-    ;; Build a 200 x 200 grid of σ,μ values
+    ;; Build a 200 x 200 grid of μ,σ values
     [(define μ*-grid (seq μ-lo μ-hi 200))
      (define σ*-grid (seq σ-lo σ-hi 200))
 
@@ -297,7 +292,8 @@
                                    (log (dist d)))))))
 
      (define prod*
-       (for*/list ([μ (in-list μ*-grid)][σ (in-list σ*-grid)])
+       (for*/list ([μ (in-list μ*-grid)]
+                   [σ (in-list σ*-grid)])
          (let ([dist (distribution-pdf (normal-dist μ σ))])
            (vector μ σ
                    (+ (for/sum ([d h*])
@@ -328,7 +324,7 @@
 ;; Example Fit
 #;
 (begin
-  (require (submod "." #;"heights.rkt" howell))
+  (require (submod #;"." "heights.rkt" howell))
   ;; grab the first 20 adult heights, just to get started
   (define first-20-heights (in-vector adult-heights 0 20))
   #;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
@@ -346,7 +342,7 @@
 ;; Example of drawing samples from the posterior
 #;
 (begin
-  (require (submod "." #;"heights.rkt" howell))
+  (require (submod #;"." "heights.rkt" howell))
   (define post (fit-heights adult-heights 153 156 6 9))
   (define-values (μσ* w)
     (for/lists (uss w) ([p post]) (values (vector-take p 2) (vector-ref p 2))))
@@ -363,7 +359,7 @@
 ;;  Repeating the same, but with only 20 samples so as to inspect sigma
 #;
 (begin
-  (require (submod "." #;"heights.rkt" howell))
+  (require (submod #;"." "heights.rkt" howell))
   (define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
   (define post (fit-heights random-20-heights 150 170 4 20))
   (define-values (μσ* w)
@@ -388,7 +384,7 @@
 (begin
   (require (submod #;"." "heights.rkt" howell))
   (require "laplace-approx.rkt")
-
+  (plot-height 300) (plot-width 300)
   ;;
   ;; Fit the first 20 heights
   ;;
@@ -396,30 +392,38 @@
   ;; grab the first 20 adult heights, just to get started, and help w/ testing
   (define first-20-heights (in-vector adult-heights 0 20))
   ;; for variety, select a random 20 adult heights
-  ;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
-
-
-  ;(define post-20 (fit-heights first-20-heights 150 170 4 20))
+  #;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
   ;; non-normalized log posterior (compositionally constructed)
   (define lnpf20 (make-joint first-20-heights 'log))
   (define laf20 (laplace-approx lnpf20 '((140 160) (4 20))))
-  (define modef20 (lapprox-means laf20))
   (define qpdff20 (lapprox-pdf laf20))
-  (define qp3df20 (plot3d (surface3d qpdff20 140 160 4 20)))
+  (define qp3df20
+    (plot3d (surface3d qpdff20 140 160 4 20)
+            #:title
+            "Approximate Posterior Normal Distributions of Heights (n=20)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Probability"))
 
   ;; given non-normalized log posterior and mode,
   ;; produce unit-normalized posterior
-  (define (make-updf nnlp mode)
-    (let ([mx (apply nnlp mode)])
+  (define (make-updf nnlp la)
+    (let ([mx (apply nnlp (lapprox-means la))])
       (with-arity-of nnlp
         (λ x*
-        (exp (- (apply nnlp x*) mx))))))
+          (exp (- (apply nnlp x*) mx))))))
     
   ;; for comparison: unit-normalized posterior
-  (define unpostf20 (make-updf lnpf20 modef20))
-  (define unp3df20 (plot3d (surface3d unpostf20 140 160 4 20)))
+  (define unpostf20 (make-updf lnpf20 laf20))
+  (define unp3df20
+    (plot3d (surface3d unpostf20 140 160 4 20)
+            #:title
+            "Relative Posterior Normal Distributions of Heights (n=20)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Relative Plausibility"))
 
-  #;(list qp3df20 unp3df20) ;; to see them juxtaposed
+  #;(list unp3df20 qp3df20) ;; to see them juxtaposed
 
   ;;
   ;; Fit the adult heights
@@ -428,14 +432,25 @@
   ;; non-normalized log posterior (compositionally constructed)
   (define lnp (make-joint adult-heights 'log))
   (define la (laplace-approx lnp '((140 160) (4 20)))) 
-  (define mode (lapprox-means la))
 
   (define qpdf (lapprox-pdf la))
-  (define qp3d (plot3d (surface3d qpdf 153 157 7 11))) ;; much tighter!
+  (define qp3d
+    (plot3d (surface3d qpdf 153 157 7 11)
+            #:title
+            "Approximate Posterior Normal Distributions of Heights (n=352)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Probability")) ;; much tighter!
 
   ;; for comparison: non-normalized posterior
-  (define unpost (make-updf lnp mode))
-  (define unp3d (plot3d (surface3d unpost 153 157 7 11)))
+  (define unpost (make-updf lnp la))
+  (define unp3d
+    (plot3d (surface3d unpost 153 157 7 11)
+            #:title
+            "Relative Posterior Normal Distributions of Heights (n=352)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Relative Plausibility"))
 
-  #;(list qp3d unp3d) ;; to see them juxtaposed
+  #;(list unp3d qp3d) ;; to see them juxtaposed
   (void))
