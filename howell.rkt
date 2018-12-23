@@ -105,7 +105,11 @@
                [h (in-vector (df-select adults-df "height"))])
       (vector w h)))
   ;; Scatter-plot of adult weight vs. height (see the correlation)
-  (define plot-adult-weight-height (plot (points adult-weight-height)))
+  (define plot-adult-weight-height
+    (plot (points adult-weight-height
+                  #:color 'blue #:alpha 0.7 #:sym 'fullcircle5)
+          #:x-label "Weight (kg)" #:y-label "Height (cm)"
+          #:x-min 25 #:x-max 65 #:y-min 125 #:y-max 185))
   ;; density plot of adult height (see that it looks normal)
   (define plot-adult-height-density
     (plot (density (df-select adults-df "height") 2)))  
