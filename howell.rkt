@@ -17,7 +17,6 @@
 ;; or to load within this file::
 ;; (require (submod "." howell))
 
-(module howell racket
   (require plot)
   (require csv-reading) ;; for reading McElreath's csv file
   ;; McElreath uses data frames a lot in R: are Racket's data frames helpful?
@@ -110,4 +109,3 @@
   ;; density plot of adult height (see that it looks normal)
   (define plot-adult-height-density
     (plot (density (df-select adults-df "height") 2)))  
-  (void)) ; module howell
