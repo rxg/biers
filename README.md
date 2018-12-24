@@ -22,10 +22,13 @@ systems from this text in the Racket dialect of Scheme.
 
 R has been around for some time, has focused specifically on data
 analysis, and has acquired a broad, deep community and substantial
-mindshare.  It's libraries are well-tuned to this work.  Racket is not
-nearly as widely used for data analysis.  Luckily for me a few
-trailblazers have gone this route in the past, leaving behind some
-artifacts that I could use along the way.
+mindshare (for some enlightenment about R's origins, I recommend
+reading this history of it's progenitor, S:
+<http://www.math.uwaterloo.ca/~rwoldfor/software/R-code/historyOfS.pdf>).
+It's libraries are well-tuned to this work.  Racket is not nearly as
+widely used for data analysis.  Luckily for me a few trailblazers have
+gone this route in the past, leaving behind some artifacts that I
+could use along the way.
 
 A guide to the core files (in conceptual order):
 
@@ -53,6 +56,18 @@ A guide to the core files (in conceptual order):
 	
 
 A guide to the helper files:
+
+  * howell.rkt - A module for loading and processing the Howell data
+    set used in Chapter 4.  As an experiment, it uses the Racket
+    data-frame package to represent the data.  I might try John
+    Clements' `sqlite-table` package in the future.  This module uses
+    the csv-reading package to read the data file (the data-frame
+    package's csv reading is not flexible enough to read the file
+    as-is).
+	
+	  * <https://github.com/alex-hhh/data-frame.git>
+	  * `raco pkg install csv-reading`
+	  * <https://github.com/rmcelreath/rethinking/blob/master/data/Howell1.csv>
 
   * diy.rkt - Some Racket code that implements routines that are
     already available as libraries.  Factored out of the main code as
