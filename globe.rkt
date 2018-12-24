@@ -141,7 +141,7 @@
 
 ;; plot the posterior for the given summary data
 ;; use #f for y-max to automate the choice
-(define (plot-posterior w n prior y-max)
+(define (plot-posterior w n prior [y-max #f])
   (plot (function (mk-posterior w n prior) 0 1)
         #:x-label #f #:y-label #f #:y-min 0 #:y-max y-max))
 
@@ -292,6 +292,12 @@
   (define dist (discrete-dist p-grid posterior))
   (make-gd p-grid posterior dist))
 
+(define (gd-coords gd)
+  (line-coords (gd-grid gd) (gd-density gd)))
+
+(define (gd-zero-coords gd)
+  (line-coords (gd-grid gd) (build-list (length (gd-grid gd)) (λ (_) 0))))
+  
 ;; Render the distribution of gd for 2D plotting
 (define (render-gd gd)
   (lines (map vector (gd-grid gd) (gd-density gd))))
@@ -331,6 +337,7 @@
 
 ;; Intervals of defined boundaries, based on the grid posterior
 ;; compute the mass of probability that satisfies pred
+;; RG - modify to use grid density object!
 (define (pr-posterior pred p-grid posterior)
   (let* ([coords (map list p-grid posterior)]
          [relevant-coords (filter (λ (p) (pred (first p))) coords)]
@@ -342,6 +349,8 @@
 (begin
   (pr-posterior (λ (p) (< p 0.5)) p-grid posterior)
   (void))
+
+;; RG: Make a version that draws samples and does it itself!
 
 ;; Intervals of defined boundaries, based on the samples
 (define (pr-samples pred samples)
@@ -361,7 +370,8 @@
          [lo (- 1/2 split)]
          [hi (+ 1/2 split)])
     (for/list ([p (list lo hi)])
-      (list p (quantile p < samples)))))
+      (quantile p < samples)
+      #;(list p (quantile p < samples)))))
 
 ;; Highest Posterior Density (HPD) Interval
 ;; calculate the minimum interval that contains q percent of probability mass
@@ -370,6 +380,28 @@
   (define-values (lo hi) (real-hpd-interval q samples))
   (list lo hi))
 
+
+;; exploit credibility intervals in plots
+
+(define (plot-with-hpdi-interval gd-post q)
+  ;; use samples to determine credibility interval
+  (define samples (sample-gd gd-post 10000))
+  (match-define `(,lo ,hi) (hpdi samples q))
+  (plot-with-interval gd-post lo hi))
+
+(define (plot-with-credibility-interval gd-post q)
+  ;; use samples to determine credibility interval
+  (define samples (sample-gd gd-post 10000))
+  (match-define `(,lo ,hi) (percentile-interval samples q))
+  (plot-with-interval gd-post lo hi))
+
+(define (plot-with-interval gd-post lo hi)
+  (define zeros (gd-zero-coords gd-post))
+  (define post (gd-coords gd-post))
+  (plot (list
+         (lines post)
+         (lines-interval zeros post
+                         #:x-min lo #:x-max hi #:line1-style 'transparent))))
 
 ;; calculate the loss (wrt loss function loss-fn) for point p-guess against
 ;; the grid posterior (p-grid,posterior)
