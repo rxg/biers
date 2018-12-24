@@ -419,32 +419,41 @@
 ;;
 
 ;; fill the lo-to-hi region of gd-post posterior plot
-(define (plot-with-interval gd-post lo hi)
+(define (render-with-interval gd-post lo hi)
   (define zeros (gd-zero-coords gd-post))
   (define post (gd-coords gd-post))
-  (plot (list
-         (lines-interval zeros post
-                         #:x-min lo #:x-max hi
-                         #:line1-style 'transparent #:line2-style 'transparent)
-         (lines post))))
+  (list
+   (lines-interval zeros post #:x-min lo #:x-max hi
+                   #:line1-style 'transparent #:line2-style 'transparent)
+   (lines post)))
 
-;; hpdi version 
+(define (plot-with-interval gd-post lo hi)
+  (plot (render-with-interval gd-post lo hi)))
+
+
+;; hpdi wrapper 
 (define (plot-with-hpdi gd-post q)
   (match-define `(,lo ,hi) (gd-hpdi gd-post q))
-  (plot-with-interval gd-post lo hi))
+  (plot (render-with-interval gd-post lo hi)
+        #:title (format "~a% Highest Probability Density Interval" (* q 100))))
 
-;; compatibility interval version
+
+;; compatibility interval wrapper
 (define (plot-with-compatibility-interval gd-post q)
   ;; use samples to determine credibility interval
   (match-define `(,lo ,hi) (gd-compatibility-interval gd-post q))
-  (plot-with-interval gd-post lo hi))
+  (plot (render-with-interval gd-post lo hi)
+        #:title (format "~a% Compatibility Interval" (* q 100))))
 
+;; Example Uses
 #;
 (begin
   (define gd (gd-posterior 6 9 flat-prior 1000))
   (define plot-ci (plot-with-compatibility-interval gd 0.5))
   (define plot-hpdi (plot-with-hpdi gd 0.5))
   (void))
+
+
 ;; calculate the loss (wrt loss function loss-fn) for point p-guess against
 ;; the grid posterior (p-grid,posterior)
 (define (calculate-loss p-guess p-grid posterior loss-fn)
@@ -452,6 +461,7 @@
                      [y posterior])
             (* (loss-fn p-guess x) y)))
      (sum posterior)))
+
 
 ;; approximate a point estimate with respect to the given loss-function
 ;; for the approximate posterior (pgrid,posterior)
