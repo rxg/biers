@@ -143,15 +143,35 @@
 ;; use #f for y-max to automate the choice
 (define (plot-posterior w n prior [y-max #f])
   (plot (function (mk-posterior w n prior) 0 1)
-        #:x-label #f #:y-label #f #:y-min 0 #:y-max y-max))
+        #:x-label #f #:y-label #f #:y-min 0 #:y-max y-max
+        #:width 120 #:height 120))
 
 
 ;;
 ;; Bayesian Inference Using Grid Approximation
 ;;
 
+;; Grid(m,n,count) is (listOf Rational)
+;; grid of count evenly distributed points from m to n.
+
+;; create a grid of count points from lo to hi
+(define (make-grid lo hi count) (linear-seq lo hi count))
+
+;; lo value of grid
+(define (grid-lo g) (first g))
+
+;; hi value of grid
+(define (grid-hi g) (last g))
+
+; number of grid points
+(define (grid-count g) (length g))
+
+;; grid step-size (well-defined because our grids are uniform)
+(define (grid-step-size g)
+  (- (second g) (first g)))
+
 ;; McElreath's approximate marginal is faux-discrete: kinda wonky.
-;; Instead we approximate the integral with boxes a la Gelman et al.
+;; Instead we approximate the integral with boxes a la Gelman et al. BDA3
 
 ;; a dead simple integral approximation. 
 ;; doesn't try to be smart at the boundaries
@@ -161,53 +181,55 @@
   (* (sum ys) step))
 
 ;; compute joint probability at a set of points
-(define (joints w n prior points)
-  (for/list ([p points]) (joint w n p prior)))
+(define (joints w n prior p*)
+  (for/list ([p p*]) (joint w n p prior)))
 
 ;; approximate the posteriors at the given points
-(define (grid-points-posterior w n prior points)
-  (let* ([joint* (joints w n prior points)]
-         [step (grid-step-size points)] 
+(define (grid-points-posterior w n prior grid)
+  (let* ([joint* (joints w n prior grid)]
+         [step (grid-step-size grid)] 
          [approx-marginal (box-integrate joint* step)])
     (for/list ([joint joint*]) (/ joint approx-marginal))))
 
-;; Grid(m,n,count) is (listOf Rational)
-;; grid of count evenly distributed points from m to n.
+;;
+;; Tools for working with grid posteriors
+;;
+;; grid distribution object
+(define-struct gd (grid density dist))
 
-;; create a grid of count points from m to n
-(define (make-grid m n count) (linear-seq m n count))
+;; forwarding grid selectors
+(define (gd-lo gd) (grid-lo (gd-grid gd)))
+(define (gd-hi gd) (grid-hi (gd-grid gd)))
+(define (gd-count gd) (grid-count (gd-grid gd)))
+(define (gd-step-size gd) (grid-step-size (gd-grid gd)))
 
-;; recover the grid step-size (we know it's uniform)
-(define (grid-step-size points)
-  (- (second points) (first points)))
 
-;; Produce a grid of "count" posterior points
-(define (grid-count-posterior w n prior count)
-  (let ([points (make-grid 0 1 count)])
-    (grid-points-posterior w n prior points)))
+;; produce a count-sized grid distribution for the posterior of the parameters
+(define (gd-posterior w n prior count)
+  (define p-grid (make-grid 0 1 count))
+  (define posterior (grid-points-posterior w n prior p-grid))
+  (define dist (discrete-dist p-grid posterior))
+  (make-gd p-grid posterior dist))
 
-;; collate points and posteriors into plotting coordinates
-(define (line-coords points posteriors)
-  (map vector points posteriors))
+(define (gd-coords gd)
+  (map vector (gd-grid gd) (gd-density gd)))
 
-;; given w n and count, generate a list of posterior coords
-(define (grid-approx-coords w n prior count)
-  (let* ([points (make-grid 0 1 count)]
-         [posteriors (grid-points-posterior w n prior points)])
-    (line-coords points posteriors)))
+(define (gd-zero-coords gd)
+  (define n (grid-count (gd-grid gd)))
+  (map vector  (gd-grid gd)
+       (for/list ([i n]) 0)))
+  
+;; Render the distribution of gd for 2D plotting and maybe label the points
+(define (render-gd gd [labels? #f])
+  (define coords (gd-coords gd))
+  (define maybe-points (if (not labels?)                          
+                           empty
+                           (map point-label coords)))
+  (cons (lines (gd-coords gd)) maybe-points))
 
-;; plot coordinates as a line and maybe label the points
-(define (plot-coords coords labels?)
-  (let ([maybe-points (if (not labels?)
-                          empty
-                          (map point-label coords))])
-    (plot (cons (lines coords) maybe-points)
-          #:y-min 0 #:x-label #f #:y-label #f)))
+(define (plot-gd gd [labels? #f])
+  (plot (render-gd gd labels?)))
 
-;; plot "count" grid posterior points for the summary (w,n)
-(define (plot-grid-approx w n prior count labels?)
-  (let* ([coords (grid-approx-coords w n prior count)])
-    (plot-coords coords labels?)))
 
 ;;
 ;; More Visualization Tools
@@ -234,7 +256,7 @@
 ;; wrapper to simulate inference using grid approximation
 (define (simulate-grid-bayes prior size obs*)
   (simulate-bayes obs*
-                  (λ (w n) (plot-grid-approx w n prior size #f))))
+                  (λ (w n) (plot-gd (gd-posterior w n prior size) #f))))
 
 ;; wrapper to simulate inference using numerical integration
 (define (simulate-integral-bayes prior obs* y-max)
@@ -250,15 +272,12 @@
     ;; pre-compute approximations to get y-axis right
     (let ([grids (for/list ([sm sm*])
                    (match-let ([(list w n) sm])
-                     (grid-count-posterior w n prior grid-size)))])
+                     (gd-density (gd-posterior w n prior grid-size))))])
       (let ([y-max (apply max
                           (apply append grids))]
             [y-scale-factor 1.1]) ;; add some breathing room at top of plot
         (simulate-integral-bayes prior obs* (* y-max y-scale-factor))))))
 
-;; Globally set plot dimensions
-(plot-width 120)
-(plot-height 120)
 
 ;; Example use
 #;
@@ -269,38 +288,29 @@
 
 
 ;; Example from McElreath Chapter 2:
-;; comparing Quadratic Approximation to the ideal (Figure 2.8, p. 43)
+;; Comparing Quadratic Approximation to the ideal (Figure 2.8, p. 43)
+;; Bonus: including integral approximation
 #;
-(plot
- (list
-  (function (distribution-pdf (beta-dist 7 4)) 0 1 #:color "blue")
-  (function (distribution-pdf (normal-dist 0.67 0.16)) 0 1 #:color "black")))
+(begin
+  (require "laplace-approx.rkt")
+  (define la-plots
+    (for/list ([w '(6 12 18)]
+               [n '(9 18 27)])
+      (define (log-joint p) (log (joint w n p flat-prior)))
+      (define lapprox-d (lapprox-pdf
+                         (laplace-approx log-joint '((0 1)))))
+      (define analytic-d (distribution-pdf (beta-dist (add1 w) (add1 (- n w)))))
+      (define infer-d (mk-posterior w n flat-prior))
+      (plot (list (function lapprox-d  0 1 #:color "blue")
+                  (function analytic-d 0 1 #:color "pink")
+                  (function  infer-d 0 1 #:color "black"
+                             #:style 'dot #:width 2)))))
+  (void))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Chapter 3: Sampling-based analysis/summarization of the posterior
 
-;;
-;; Tools for working with grid posteriors
-;;
-;; grid Distribution object
-(define-struct gd (grid density dist))
-
-;; produce a count-sized grid distribution for the posterior of the parameters
-(define (gd-posterior w n prior count)
-  (define p-grid (make-grid 0 1 count))
-  (define posterior (grid-points-posterior w n prior p-grid))
-  (define dist (discrete-dist p-grid posterior))
-  (make-gd p-grid posterior dist))
-
-(define (gd-coords gd)
-  (line-coords (gd-grid gd) (gd-density gd)))
-
-(define (gd-zero-coords gd)
-  (line-coords (gd-grid gd) (build-list (length (gd-grid gd)) (λ (_) 0))))
-  
-;; Render the distribution of gd for 2D plotting
-(define (render-gd gd)
-  (lines (map vector (gd-grid gd) (gd-density gd))))
 
 ;; Draw n samples from the given grid posterior
 (define (sample-gd gd n)
