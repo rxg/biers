@@ -315,7 +315,7 @@
 ;; Chapter 3: Sampling-based analysis/summarization of the posterior
 
 
-;; Draw n samples from the given grid posterior
+;; draw n samples from the given grid posterior
 (define (sample-gd gd n)
   (sample (gd-dist gd) n))
 
@@ -327,21 +327,21 @@
 #;
 (begin
   ;; grid distribution
-  (plot-width 360) (plot-height 360)
   (define p1e3 (gd-posterior 6 9 flat-prior 1000))
-  ;; Draw samples from the grid approximation (Chapter 3)
+  ;; draw samples from the grid approximation (Chapter 3)
   (define samples (sample-gd p1e3 10000))
   ;; points ordered by draw (comment due to Suzanna)
-  (plot (render-samples samples)
-        #:y-min 0 #:y-max 1)
-  ;; From Suzanna, put the points in order by value
-  (plot (render-samples (sort samples <))
-        #:y-min 0 #:y-max 1)
+  (define sample-plot1 (plot (render-samples samples)
+                             #:y-min 0 #:y-max 1))
+  ;; from Suzanna, points ordered by value
+  (define sample-plot2 (plot (render-samples (sort samples <))
+                             #:y-min 0 #:y-max 1))
   ;; density plot of the samples
-  (plot (density samples 2)
-        #:x-min 0 #:x-max 1)
+  (define sample-plot3 (plot (density samples 2)
+                             #:x-min 0 #:x-max 1))
   ;; for comparison, the source of the samples
-  (plot (render-gd p1e3))
+  (define sample-plot4 (plot-gd p1e3))
+  #;(list sample-plot1 sample-plot2 sample-plot3 sample-plot4)
   (void))
 
 ;;
@@ -350,30 +350,43 @@
 
 ;; Intervals of defined boundaries, based on the grid posterior
 ;; compute the mass of probability that satisfies pred
-;; RG - modify to use grid density object!
-(define (pr-posterior pred p-grid posterior)
-  (let* ([coords (map list p-grid posterior)]
-         [relevant-coords (filter (λ (p) (pred (first p))) coords)]
-         [relevant-mass (map second relevant-coords)])
-    (/ (sum relevant-mass)
-       (sum posterior))))
-    
+(define (pr-posterior pred? p-grid posterior)
+  (define relevant-mass
+    (for/list ([p p-grid]
+               [d posterior]
+               #:when (pred? p))
+      d))
+  (/ (sum relevant-mass)
+     (sum posterior)))
+
+;; (p -> Boolean) -> Grid -> Prob
+;; how much probability lies in the posterior region satisfying pred?
+;; typically pred defines a bounded region
+(define (gd-mass-in pred gd)
+  (pr-posterior pred (gd-grid gd) (gd-density gd)))
+
 #;
 (begin
-  (pr-posterior (λ (p) (< p 0.5)) p-grid posterior)
+  (define post-69 (gd-posterior 6 9 flat-prior 1000))
+  (define p<0.5 (gd-mass-in (λ (p) (< p 0.5)) post-69))
   (void))
 
-;; RG: Make a version that draws samples and does it itself!
 
 ;; Intervals of defined boundaries, based on the samples
 (define (pr-samples pred samples)
   (/ (count pred samples)
      (length samples)))
 
+;; unified: sampling-based variant of gd-mass-in
+(define (gd-mass-in-samples pred gd)
+  (define samples (sample-gd gd 10000))
+  (pr-samples pred samples))
+
 #;
 (begin
-  (pr-samples (λ (p) (< p 0.5)) samples)
-  (pr-samples (λ (p) (< 0.5 p 0.75)) samples)
+  (define post-69 (gd-posterior 6 9 flat-prior 1000))
+  (define p<0.5 (gd-mass-in-samples (λ (p) (< p 0.5)) post-69))
+  (define p0.5-0.75 (gd-mass-in-samples (λ (p) (< 0.5 p 0.75)) post-69))
   (void))
 
 
@@ -386,6 +399,10 @@
       (quantile p < samples)
       #;(list p (quantile p < samples)))))
 
+;; grid-posterior wrapper for percentile-interval
+(define (gd-compatibility-interval gd q)
+  (percentile-interval (sample-gd gd 10000) q))
+
 ;; Highest Posterior Density (HPD) Interval
 ;; calculate the minimum interval that contains q percent of probability mass
 (define (hpdi samples q)
@@ -393,21 +410,15 @@
   (define-values (lo hi) (real-hpd-interval q samples))
   (list lo hi))
 
+;; grid-posterior wrapper for hpdi
+(define (gd-hpdi gd q)
+  (hpdi (sample-gd gd 10000) q))
 
+;;
 ;; exploit credibility intervals in plots
+;;
 
-(define (plot-with-hpdi-interval gd-post q)
-  ;; use samples to determine credibility interval
-  (define samples (sample-gd gd-post 10000))
-  (match-define `(,lo ,hi) (hpdi samples q))
-  (plot-with-interval gd-post lo hi))
-
-(define (plot-with-credibility-interval gd-post q)
-  ;; use samples to determine credibility interval
-  (define samples (sample-gd gd-post 10000))
-  (match-define `(,lo ,hi) (percentile-interval samples q))
-  (plot-with-interval gd-post lo hi))
-
+;; fill the lo-to-hi region of gd-post posterior plot
 (define (plot-with-interval gd-post lo hi)
   (define zeros (gd-zero-coords gd-post))
   (define post (gd-coords gd-post))
@@ -417,6 +428,23 @@
                          #:line1-style 'transparent #:line2-style 'transparent)
          (lines post))))
 
+;; hpdi version 
+(define (plot-with-hpdi gd-post q)
+  (match-define `(,lo ,hi) (gd-hpdi gd-post q))
+  (plot-with-interval gd-post lo hi))
+
+;; compatibility interval version
+(define (plot-with-compatibility-interval gd-post q)
+  ;; use samples to determine credibility interval
+  (match-define `(,lo ,hi) (gd-compatibility-interval gd-post q))
+  (plot-with-interval gd-post lo hi))
+
+#;
+(begin
+  (define gd (gd-posterior 6 9 flat-prior 1000))
+  (define plot-ci (plot-with-compatibility-interval gd 0.5))
+  (define plot-hpdi (plot-with-hpdi gd 0.5))
+  (void))
 ;; calculate the loss (wrt loss function loss-fn) for point p-guess against
 ;; the grid posterior (p-grid,posterior)
 (define (calculate-loss p-guess p-grid posterior loss-fn)
