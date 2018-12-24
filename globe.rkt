@@ -298,29 +298,6 @@
   (plot-sequential-inference flat-prior s*))
 
 
-;; Example from McElreath Chapter 2:
-;; Comparing Quadratic Approximation to the ideal (Figure 2.8, p. 43)
-;; Bonus: including integral approximation
-#;
-(begin
-  (require "laplace-approx.rkt")
-  (define la-plots
-    (for/list ([w '(6 12 18)]
-               [n '(9 18 27)])
-      (define (log-joint p) (log (joint w n p flat-prior)))
-      (define lapprox-d (lapprox-pdf
-                         (laplace-approx log-joint '((0 1)))))
-      (define analytic-d (distribution-pdf (beta-dist (add1 w) (add1 (- n w)))))
-      (define infer-d (mk-posterior w n flat-prior))
-      (plot (list (function lapprox-d  0 1 #:color "blue")
-                  (function analytic-d 0 1 #:color "pink")
-                  (function  infer-d 0 1 #:color "black"
-                             #:style 'dot #:width 2))
-            #:title (format "n = ~a" n)
-            #:y-label "Density" #:x-label "proportion water")))
-  (void))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Chapter 3: Sampling-based analysis/summarization of the posterior
 
@@ -525,25 +502,28 @@
 ;;   quadratic function).
 ;;
 
+;; Example from McElreath Chapter 2:
+;; Comparing Quadratic Approximation to the ideal (Figure 2.8, p. 43)
+;; Bonus: including integral approximation
 #;
 (begin
   (require "laplace-approx.rkt")
-  (define post (mk-posterior 6 9 flat-prior))
-  (define lpost (compose log post))
-  (define mode (maximize-fn lpost '((0 1))))
-  (define la (laplace-approx lpost (list mode)))
-  (define la-post (lapprox-pdf la))
-  ;; We can draw samples from the Laplace approximation!
-  #;(define samples (lapprox-sample la 10))
-  (plot-width 360)
-  (plot-height 360)
-  (define cmp
-    (plot
-     (list (function post 0 1
-                     #:label "Numerical Integration Posterior" #:color 'black)
-           (function la-post 0 1
-                     #:label "Laplace Approximation Posterior" #:color 'cyan))))
-  cmp)
+  (define la-plots
+    (for/list ([w '(6 12 18)]
+               [n '(9 18 27)])
+      (define (log-joint p) (log (joint w n p flat-prior)))
+      (define lapprox-d (lapprox-pdf
+                         (laplace-approx log-joint '((0 1)))))
+      (define analytic-d (distribution-pdf (beta-dist (add1 w) (add1 (- n w)))))
+      (define infer-d (mk-posterior w n flat-prior))
+      (plot (list (function lapprox-d  0 1 #:color "blue")
+                  (function analytic-d 0 1 #:color "pink")
+                  (function  infer-d 0 1 #:color "black"
+                             #:style 'dot #:width 2))
+            #:title (format "n = ~a" n)
+            #:y-label "Density" #:x-label "proportion water")))
+  (void))
+
 
 
 ;;
@@ -551,11 +531,22 @@
 ;;
 
 
-;; Let's make a likelihood sampler.
-;; produces a list of w's for given n and p
+;; Let's make a likelihood sampler for p(w|n,p)
+;; produces "count"-many waters w seen out of n observations for proportion p
 (define (likelihood-sampler n p count)
   (let ([d (binomial-dist n p)])
     (sample d count)))
+
+;; Example use 
+#;
+(begin
+  (define experiments (likelihood-sampler 9 (/ WATER-PROPORTION 100) 5))
+  (define freq-table
+    (let-values ([(w* f*) (count-samples (likelihood-sampler 2 0.7 100000))])
+      (sort (map list w* f*) < #:key first)))
+  (define likelihoods-plot
+    (plot (render-hist (likelihood-sampler 9 0.7 100000))))
+  (void))
 
 
 ;; draw likelihood samples proportional to samples from a given distribution
@@ -569,12 +560,14 @@
 ;;
 
 ;; THIS ONE IS A SPACE HOG, especially as the numbers get big! 
+#;
 (define (predictive-dist-samples2 dist-samples n)
   (apply append
          (for/list ([p dist-samples])
            (likelihood-sampler n p 10000))))
 
-;; THIS ONE IS SLOW: maybe loops can be tuned, but  
+;; THIS ONE IS SLOW: maybe loops can be tuned?
+#;
 (define (predictive-dist-samples3 dist-samples n)
   (let* ([size (* (length dist-samples) 10000)]
          [vec (make-vector size)])
@@ -587,17 +580,19 @@
 
 
 
-;; Timing Code
-#;
-(time (begin (predictive-dist-samples0 post*) (void)))
-
-
+;; Timing example for predictive sampling 
 #;
 (begin
-  (likelihood-sampler 9 (/ WATER-PROPORTION 100) 5)
-  (count-samples (likelihood-sampler 2 0.7 100000))
-  (plot (render-hist (likelihood-sampler 9 0.7 100000)))
+  (define gdpost (gd-posterior 6 9 flat-prior 1000))
+  ;; draw samples from the grid approximation (Chapter 3)
+  (define post-samples (sample-gd gdpost 10000))
+
+  (define predictive-samples (void))
+  (time (set! predictive-samples (predictive-dist-samples post-samples 9)))
+  #;(define predictive-plot (time (plot (render-hist predictive-samples))))
   (void))
+
+
 
 ;; Build a grid prior for sampling
 (define (gd-prior prior count)
@@ -609,11 +604,11 @@
 
 ;; Example of constructing a posterior predictive distribution 
 ;; and prior predictive distributions via sampling
+;; WARNING: This takes some minutes (hence the progress cues)
 #;
 (begin
-  (plot-width 360) (plot-height 360)
   ;; grid posterior
-  (define post (gd-posterior 6 9 flat-prior 10000))
+  (define post-gd (gd-posterior 6 9 flat-prior 10000))
 
   ;; grid priors 
   (define flat-gd (gd-prior flat-prior 1000))  
@@ -621,9 +616,21 @@
   (define peaked-gd (gd-prior peaked-prior 1000))
 
   ;; Draw samples from the grid posterior approximation (Chapter 3)
-  (define post* (sample-gd post 10000))
+  (define post-samples (sample-gd post-gd 10000))
   ;; predictive posterior samples
-  (define predict-post* (predictive-dist-samples post* 9))
+  (printf "generating posterior predictive samples...")
+  (define post-predict* (predictive-dist-samples post-samples 9))
   ;; plot the posterior predictive distribution
-  (plot (render-hist predict-post*))
+  (printf "\nrendering posterior predictive frequency distribution graph...")
+  (define post-predict-plot (plot (render-hist post-predict*)
+          #:title "Posterior predictive frequency distribution"))
+
+  ;; repeat for the peaked prior (the only interesting-looking one)
+  (define peak-samples (sample-gd peaked-gd 10000))
+  (printf "\ngenerating prior predictive samples...")
+  (define peaked-predict* (predictive-dist-samples peak-samples 9))
+  (printf "\nrendering prior predictive frequency distribution graph...")
+  (define peaked-predict-plot (plot (render-hist peaked-predict*)
+          #:title "Peaked prior predictive frequency distribution"))
+  #;(list post-predict-plot peaked-predict-plot)
   (void))
