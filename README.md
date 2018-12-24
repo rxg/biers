@@ -23,12 +23,14 @@ systems from this text in the Racket dialect of Scheme.
 R has been around for some time, has focused specifically on data
 analysis, and has acquired a broad, deep community and substantial
 mindshare (for some enlightenment about R's origins, I recommend
-reading this history of it's progenitor, S:
-<http://www.math.uwaterloo.ca/~rwoldfor/software/R-code/historyOfS.pdf>).
-It's libraries are well-tuned to this work.  Racket is not nearly as
-widely used for data analysis.  Luckily for me a few trailblazers have
-gone this route in the past, leaving behind some artifacts that I
-could use along the way.
+reading (and watching) this history of it's progenitor, S:
+<http://www.math.uwaterloo.ca/~rwoldfor/software/R-code/historyOfS.pdf>
+(paper) and
+<https://blog.revolutionanalytics.com/2016/07/rick-becker-s-talk.html>
+(video)).  It's libraries are well-tuned to this work.  Racket is not
+nearly as widely used for data analysis.  Luckily for me a few
+trailblazers have gone this route in the past, leaving behind some
+artifacts that I could use along the way.
 
 A guide to the core files (in conceptual order):
 
