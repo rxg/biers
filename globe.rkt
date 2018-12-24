@@ -304,7 +304,9 @@
       (plot (list (function lapprox-d  0 1 #:color "blue")
                   (function analytic-d 0 1 #:color "pink")
                   (function  infer-d 0 1 #:color "black"
-                             #:style 'dot #:width 2)))))
+                             #:style 'dot #:width 2))
+            #:title (format "n = ~a" n)
+            #:y-label "Density" #:x-label "proportion water")))
   (void))
 
 
