@@ -31,8 +31,7 @@
 ;; Hand-crafted discrete histogram tools
 (define (sample-hist-coords samples)
   (let-values ([(x* y*) (count-samples samples)])
-    (sort (map vector x* y*)
-          (λ (a b) (< (vector-ref a 0) (vector-ref b 0))))))
+    (sort (map vector x* y*) < #:key (λ (v) (vector-ref v 0)))))
 
 (define (render-hist samples)
   (discrete-histogram (sample-hist-coords samples)))
