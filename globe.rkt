@@ -265,7 +265,8 @@
 
 ;; Better visualization using both!
 ;; a) use grid approximation to find the max posterior
-;; b) use integration to plot simulation, now with common plot axes
+;; b) use integration to sequentially plot each inference step,
+;; using the same axis scales throughout 
 (define (plot-sequential-inference prior obs*)
   (let ([sm* (running-summary obs*)]
         [grid-size 20])
