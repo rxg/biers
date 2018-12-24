@@ -196,6 +196,11 @@
 ;;
 ;; grid distribution object
 (define-struct gd (grid density dist))
+;; grid is the grid of parameter values
+;; density is the density for each parameter
+;; dist is a discrete distribution from which samples can be drawn
+;;      it is scaled down from the pdf by the posterior mode
+
 
 ;; forwarding grid selectors
 (define (gd-lo gd) (grid-lo (gd-grid gd)))
@@ -203,6 +208,11 @@
 (define (gd-count gd) (grid-count (gd-grid gd)))
 (define (gd-step-size gd) (grid-step-size (gd-grid gd)))
 
+(define (gd-pdf gd p)
+  (define alist (map list (gd-grid gd) (gd-density gd)))
+  (if (not (member p (gd-grid gd)))
+      (error 'gd-pdf "Sorry, only works for exact grid values (p=~a)" p)
+      (second (assoc p alist))))
 
 ;; produce a count-sized grid distribution for the posterior of the parameters
 (define (gd-posterior w n prior count)
@@ -469,6 +479,10 @@
   (argmin (λ (pg) (calculate-loss pg p-grid posterior loss-fn))
           p-grid))
 
+;; gd wrapper
+(define (gd-point-estimate loss-fn gd)
+  (point-estimate loss-fn (gd-grid gd) (gd-density gd)))
+
 ;; Example loss functions
 
 ;; absolute loss: corresponds to the mean (expected value) of the posterior
@@ -478,7 +492,31 @@
 (define (quadratic-loss pg p) (sqr (- pg p)))
          
 ;; 0-1 loss: corresponds to *a* mode of the posterior (not necessarily unique)
+;; behaviour of argmin in point-estimate determines which one is returned
 (define (0-1-loss pg p)  (if (= pg p) 0 1))
+
+;; Example uses
+#;
+(begin
+  (define gd (gd-posterior 6 9 flat-prior 1000))
+  (define gd-mean (gd-point-estimate absolute-loss gd))
+  (define gd-median (gd-point-estimate quadratic-loss gd))
+  (define gd-mode (gd-point-estimate 0-1-loss gd))
+  (define post-plot (render-gd gd))
+  (define (render-pe gd p #:label [label #f] #:sym [sym (point-sym)])
+    (points (list (vector p (gd-pdf gd p)))
+            #:label label #:sym sym))
+  (define pe-plot
+    (plot (cons
+           post-plot
+           (for/list ([pe (list gd-mean gd-median gd-mode)]
+                      [lbl (list "mean" "median" "mode")]
+                      [sym (list 'circle 'square 'diamond)])
+             (render-pe gd pe #:label lbl #:sym sym)))
+          #:title "Approximate Point Estimates"
+          #:y-max 3))
+  (void))
+
 
 ;;
 ;; Laplace Approximation:
