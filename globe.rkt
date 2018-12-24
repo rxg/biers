@@ -254,13 +254,6 @@
 ;; More Visualization Tools
 ;;
 
-;; interleave the contents of two lists
-;; to show each sample and its effect on the posterior
-(define (interleave lsta lstb)
-  (cond
-    [(empty? lsta) lstb]
-    [else (cons (first lsta)
-                (interleave lstb (rest lsta)))]))
 
 ;; given a list of samples, trace sequential Bayesian inference.
 ;; parameterized on inference/plotting engine
