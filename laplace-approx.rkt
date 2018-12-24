@@ -46,6 +46,8 @@
 ;; technically all we need to store is means and cov, but whatever...
 
 
+;; given a log-posterior bounds, and an initial search parameter, produce
+;; a Laplacian approximation of the posterior
 (define (laplace-approx fn bounds [maybe-x0 #f] #:method [method 'GN_DIRECT_L])
   (define mode (maximize-fn fn bounds maybe-x0 #:method method))
   (laplace-approx-at fn mode))
