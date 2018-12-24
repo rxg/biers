@@ -195,7 +195,7 @@
 ;; Tools for working with grid posteriors
 ;;
 ;; grid distribution object
-(define-struct gd (grid density sample))
+(define-struct gd (grid density sampler))
 ;; grid is the grid of parameter values
 ;; density is the density for each parameter
 ;; dist is a discrete distribution from which samples can be drawn
@@ -212,9 +212,9 @@
 (define sample-gd
   (case-lambda
     [(gd)
-     ((gd-sample gd))]
+     ((gd-sampler gd))]
     [(gd n)
-     ((gd-sample gd) n)]))
+     ((gd-sampler gd) n)]))
 
 ;; produce probability density for grid values
 (define (gd-pdf gd p)
