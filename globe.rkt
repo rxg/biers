@@ -195,7 +195,7 @@
 ;; Tools for working with grid posteriors
 ;;
 ;; grid distribution object
-(define-struct gd (grid density dist))
+(define-struct gd (grid density sample))
 ;; grid is the grid of parameter values
 ;; density is the density for each parameter
 ;; dist is a discrete distribution from which samples can be drawn
@@ -208,6 +208,15 @@
 (define (gd-count gd) (grid-count (gd-grid gd)))
 (define (gd-step-size gd) (grid-step-size (gd-grid gd)))
 
+;; draw n samples from the given grid posterior
+(define sample-gd
+  (case-lambda
+    [(gd)
+     ((gd-sample gd))]
+    [(gd n)
+     ((gd-sample gd) n)]))
+
+;; produce probability density for grid values
 (define (gd-pdf gd p)
   (define alist (map list (gd-grid gd) (gd-density gd)))
   (if (not (member p (gd-grid gd)))
@@ -219,7 +228,7 @@
   (define p-grid (make-grid 0 1 count))
   (define posterior (grid-points-posterior w n prior p-grid))
   (define dist (discrete-dist p-grid posterior))
-  (make-gd p-grid posterior dist))
+  (make-gd p-grid posterior (distribution-sample dist)))
 
 (define (gd-coords gd)
   (map vector (gd-grid gd) (gd-density gd)))
@@ -302,10 +311,6 @@
 ;; Chapter 3: Sampling-based analysis/summarization of the posterior
 
 
-;; draw n samples from the given grid posterior
-(define (sample-gd gd n)
-  (sample (gd-dist gd) n))
-
 (define (render-samples samples)
   (points (map vector (range (length samples)) samples)))
 ;; The following example uses grid approximation to produce a posterior,
@@ -378,7 +383,7 @@
 
 
 ;; lower and upper boundaries of the *middle* q percent of probability mass
-(define (percentile-interval samples q)
+(define (compatibility-interval samples q)
   (let* ([split (/ q 2)]
          [lo (- 1/2 split)]
          [hi (+ 1/2 split)])
@@ -386,9 +391,9 @@
       (quantile p < samples)
       #;(list p (quantile p < samples)))))
 
-;; grid-posterior wrapper for percentile-interval
+;; grid-posterior wrapper for compatibility-interval
 (define (gd-compatibility-interval gd q)
-  (percentile-interval (sample-gd gd 10000) q))
+  (compatibility-interval (sample-gd gd 10000) q))
 
 ;; Highest Posterior Density (HPD) Interval
 ;; calculate the minimum interval that contains q percent of probability mass
@@ -599,7 +604,7 @@
   (define p-grid (make-grid 0 1 count))
   (define grid-prior (map prior p-grid))
   (define dist (discrete-dist p-grid grid-prior))
-  (make-gd p-grid grid-prior dist))
+  (make-gd p-grid grid-prior (distribution-sample dist)))
 
 
 ;; Example of constructing a posterior predictive distribution 
