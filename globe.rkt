@@ -399,9 +399,10 @@
   (define zeros (gd-zero-coords gd-post))
   (define post (gd-coords gd-post))
   (plot (list
-         (lines post)
          (lines-interval zeros post
-                         #:x-min lo #:x-max hi #:line1-style 'transparent))))
+                         #:x-min lo #:x-max hi
+                         #:line1-style 'transparent #:line2-style 'transparent)
+         (lines post))))
 
 ;; calculate the loss (wrt loss function loss-fn) for point p-guess against
 ;; the grid posterior (p-grid,posterior)
