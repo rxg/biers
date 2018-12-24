@@ -485,10 +485,10 @@
 
 ;; Example loss functions
 
-;; absolute loss: corresponds to the mean (expected value) of the posterior
+;; absolute loss: corresponds to the median (expected value) of the posterior
 (define (absolute-loss pg p) (abs (- pg p)))
 
-;; quadratic loss: corresponds to the median of the posterior
+;; quadratic loss: corresponds to the mean of the posterior
 (define (quadratic-loss pg p) (sqr (- pg p)))
          
 ;; 0-1 loss: corresponds to *a* mode of the posterior (not necessarily unique)
@@ -499,8 +499,8 @@
 #;
 (begin
   (define gd (gd-posterior 6 9 flat-prior 1000))
-  (define gd-mean (gd-point-estimate absolute-loss gd))
-  (define gd-median (gd-point-estimate quadratic-loss gd))
+  (define gd-median (gd-point-estimate absolute-loss gd))
+  (define gd-mean (gd-point-estimate quadratic-loss gd))
   (define gd-mode (gd-point-estimate 0-1-loss gd))
   (define post-plot (render-gd gd))
   (define (render-pe gd p #:label [label #f] #:sym [sym (point-sym)])
