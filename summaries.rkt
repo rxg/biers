@@ -12,9 +12,6 @@
 (require math/distributions)
 (require math/statistics)
 
-;; Integration, from https://github.com/mkierzenka/Racket_NumericalMethods
-(require "Numerical_Integration.rkt") 
-
 ;;
 ;; Summary Statistics, computed either from the posterior or from samples
 ;;
@@ -124,7 +121,7 @@
 (define (mk-hist-coords samples)
   (let-values ([(x* y*) (count-samples samples)])
     (let ([pre-coords (map vector x* y*)])
-      (sort pre-coords (λ (a b) (< (vector-ref a 0) (vector-ref b 0)))))))
+      (sort pre-coords < #:key (λ (v) (vector-ref v 0))))))
 
 (define (plot-simple-hist samples)
   (plot (discrete-histogram (mk-hist-coords samples))))
