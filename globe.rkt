@@ -208,7 +208,7 @@
 (define (gd-count gd) (grid-count (gd-grid gd)))
 (define (gd-step-size gd) (grid-step-size (gd-grid gd)))
 
-;; draw n samples from the given grid posterior
+;; draw n (or 1) samples from the given grid posterior
 (define sample-gd
   (case-lambda
     [(gd)
