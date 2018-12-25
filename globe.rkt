@@ -459,6 +459,20 @@
 (define (gd-point-estimate loss-fn gd)
   (point-estimate loss-fn (gd-grid gd) (gd-density gd)))
 
+
+;; point estimate from (grid) samples: compute discrete masses.
+(define (grid-sample-point-estimate loss-fn samples)
+  (define-values (vals freq) (count-samples samples))
+  (define max-freq (apply max freq))
+  (define vmass (for/list ([f freq]) (/ f max-freq)))
+  (define coords (map list vals vmass))
+  (define sorted-coords (sort coords < #:key first))
+  (define-values (grid mass)
+    (for/lists (grid mass) ([c sorted-coords])
+      (apply values c)))
+  (point-estimate loss-fn grid mass))
+
+  
 ;; Example loss functions
 
 ;; absolute loss: corresponds to the median (expected value) of the posterior
@@ -492,6 +506,27 @@
           #:title "Approximate Point Estimates"
           #:y-max 3))
   (void))
+
+;; Examples of computing point estimates using samples
+#;
+(begin
+  (define gd (gd-posterior 6 9 flat-prior 1000))
+  (define samples (gd-sample gd 10000))
+  (define mean-samp (grid-sample-point-estimate quadratic-loss samples))
+  (define median-samp (grid-sample-point-estimate absolute-loss samples))
+  (define mode-samp (grid-sample-point-estimate 0-1-loss samples))
+  (define mean-comp (mean samples))
+  (define median-comp (median < samples))
+  (define (mode samples)
+    (define hsh (samples->hash samples))
+    (define vals (sort (hash-keys hsh) <))
+    (argmax (λ (k) (hash-ref hsh k)) vals))
+  (define mode-comp (mode samples))
+  (define head-to-head (list (list mean-comp mean-samp)
+                             (list median-comp median-samp)
+                             (list mode-comp mode-samp)))
+  (void))
+
 
 
 ;;
@@ -621,7 +656,8 @@
   (define post-predict* (predictive-dist-samples post-samples 9))
   ;; plot the posterior predictive distribution
   (printf "\nrendering posterior predictive frequency distribution graph...")
-  (define post-predict-plot (plot (render-hist post-predict*)
+  (define post-predict-plot
+    (plot (render-hist post-predict*)
           #:title "Posterior predictive frequency distribution"))
 
   ;; repeat for the peaked prior (the only interesting-looking one)
@@ -629,7 +665,8 @@
   (printf "\ngenerating prior predictive samples...")
   (define peaked-predict* (predictive-dist-samples peak-samples 9))
   (printf "\nrendering prior predictive frequency distribution graph...")
-  (define peaked-predict-plot (plot (render-hist peaked-predict*)
+  (define peaked-predict-plot
+    (plot (render-hist peaked-predict*)
           #:title "Peaked prior predictive frequency distribution"))
   #;(list post-predict-plot peaked-predict-plot)
   (void))
