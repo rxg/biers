@@ -462,14 +462,11 @@
 
 ;; point estimate from (grid) samples: compute discrete masses.
 (define (grid-sample-point-estimate loss-fn samples)
-  (define-values (vals freq) (count-samples samples))
+  (define hsh (samples->hash samples))
+  (define grid (sort (hash-keys hsh) <))
+  (define freq (for/list ([p grid]) (hash-ref hsh p)))
   (define max-freq (apply max freq))
-  (define vmass (for/list ([f freq]) (/ f max-freq)))
-  (define coords (map list vals vmass))
-  (define sorted-coords (sort coords < #:key first))
-  (define-values (grid mass)
-    (for/lists (grid mass) ([c sorted-coords])
-      (apply values c)))
+  (define mass (for/list ([f freq]) (/ f max-freq)))
   (point-estimate loss-fn grid mass))
 
   
