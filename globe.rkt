@@ -209,7 +209,7 @@
 (define (gd-step-size gd) (grid-step-size (gd-grid gd)))
 
 ;; draw n (or 1) samples from the given grid posterior
-(define sample-gd
+(define gd-sample
   (case-lambda
     [(gd)
      ((gd-sampler gd))]
@@ -314,7 +314,7 @@
   ;; grid distribution
   (define p1e3 (gd-posterior 6 9 flat-prior 1000))
   ;; draw samples from the grid approximation (Chapter 3)
-  (define samples (sample-gd p1e3 10000))
+  (define samples (gd-sample p1e3 10000))
   ;; points ordered by draw (comment due to Suzanna)
   (define sample-plot1 (plot (render-samples samples)
                              #:y-min 0 #:y-max 1))
@@ -364,7 +364,7 @@
 
 ;; unified: sampling-based variant of gd-mass-in
 (define (gd-mass-in-samples pred gd)
-  (define samples (sample-gd gd 10000))
+  (define samples (gd-sample gd 10000))
   (pr-samples pred samples))
 
 #;
@@ -386,7 +386,7 @@
 
 ;; grid-posterior wrapper for compatibility-interval
 (define (gd-compatibility-interval gd q)
-  (compatibility-interval (sample-gd gd 10000) q))
+  (compatibility-interval (gd-sample gd 10000) q))
 
 ;; Highest Posterior Density (HPD) Interval
 ;; calculate the minimum interval that contains q percent of probability mass
@@ -397,7 +397,7 @@
 
 ;; grid-posterior wrapper for hpdi
 (define (gd-hpdi gd q)
-  (hpdi (sample-gd gd 10000) q))
+  (hpdi (gd-sample gd 10000) q))
 
 ;;
 ;; exploit credibility intervals in plots
@@ -436,6 +436,7 @@
   (define gd (gd-posterior 6 9 flat-prior 1000))
   (define plot-ci (plot-with-compatibility-interval gd 0.5))
   (define plot-hpdi (plot-with-hpdi gd 0.5))
+  #;(list plot-ci plot-hpdi)
   (void))
 
 
@@ -583,7 +584,7 @@
 (begin
   (define gdpost (gd-posterior 6 9 flat-prior 1000))
   ;; draw samples from the grid approximation (Chapter 3)
-  (define post-samples (sample-gd gdpost 10000))
+  (define post-samples (gd-sample gdpost 10000))
 
   (define predictive-samples (void))
   (time (set! predictive-samples (predictive-dist-samples post-samples 9)))
@@ -614,7 +615,7 @@
   (define peaked-gd (gd-prior peaked-prior 1000))
 
   ;; Draw samples from the grid posterior approximation (Chapter 3)
-  (define post-samples (sample-gd post-gd 10000))
+  (define post-samples (gd-sample post-gd 10000))
   ;; predictive posterior samples
   (printf "generating posterior predictive samples...")
   (define post-predict* (predictive-dist-samples post-samples 9))
@@ -624,7 +625,7 @@
           #:title "Posterior predictive frequency distribution"))
 
   ;; repeat for the peaked prior (the only interesting-looking one)
-  (define peak-samples (sample-gd peaked-gd 10000))
+  (define peak-samples (gd-sample peaked-gd 10000))
   (printf "\ngenerating prior predictive samples...")
   (define peaked-predict* (predictive-dist-samples peak-samples 9))
   (printf "\nrendering prior predictive frequency distribution graph...")
