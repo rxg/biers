@@ -77,11 +77,12 @@ A guide to the helper files:
     learning. 
   
   * laplace-approx.rkt - Laplacian quadratic approximation of
-    distributions using normal distributions.  In essence this is
-    McElreath's map/quap function reimplemented in Racket.  Depends on
-    nlopt Racket package (patched to fix some bugs, see pull
-    requests), which in turn depends on the NLopt C library, as well
-    as racket-ml (also see pull requests).
+    distributions using normal distributions.  In essence this is the
+    optimization/approximation components of McElreath's map/quap
+    functionality reimplemented in Racket (coming soon: Statistical
+    Model notion similar to map/quap's interface).  Depends on nlopt
+    Racket package, which in turn depends on the NLopt C library, as
+    well as racket-ml (patched to fix some bugs, see pull requests).
 
 	  * <https://github.com/jkominek/nlopt>
 	  * <https://nlopt.readthedocs.io/en/latest/>
@@ -136,9 +137,9 @@ making the code here easier to get running.
 
     * <https://github.com/danking/racket-ml>
 	  
-  * Racket nlopt - wraps the NLOpt C library for optimizing functions.
-    Some patches made (see pull requests on github). Depends on the NLOpt C
-    library.  Available via `raco pkg install nlopt` or on github.
+  * Racket nlopt - by Jay Kominek.  Wraps the NLOpt C library for
+    numerically solving non-linear optimization problems.  Available
+    via `raco pkg install nlopt` or on github. 
 	
     * <https://github.com/jkominek/nlopt> 
     * <https://nlopt.readthedocs.io/en/latest/> 
