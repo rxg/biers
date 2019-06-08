@@ -4,7 +4,7 @@
 (provide median mean stddev variance)
 
 ;;
-;; summary-stats.rkt - some techniques for computing summary statistics
+;; summaries.rkt - some techniques for computing summary statistics
 ;;    
 (require plot)
 (require math/base)
