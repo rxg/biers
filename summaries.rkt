@@ -8,23 +8,25 @@
 ;;    
 (require plot)
 (require math/base)
-(require math/number-theory)
-(require math/distributions)
 (require math/statistics)
 
 ;;
 ;; Summary Statistics, computed either from the posterior or from samples
 ;;
 
+
+
 ;; Intervals of defined boundaries, based on the grid posterior
 ;; compute the mass of probability that satisfies pred
-(define (pr-mass-posterior pred p-grid posterior)
-  (let* ([coords (map list p-grid posterior)]
-         [relevant-coords (filter (λ (p) (pred (first p))) coords)]
-         [relevant-mass (map second relevant-coords)])
-    (/ (sum relevant-mass)
-       (sum posterior))))
-    
+(define (pr-mass-posterior pred? p-grid posterior)
+  (define relevant-mass
+    (for/list ([p p-grid]
+               [d posterior]
+               #:when (pred? p))
+      d))
+  (/ (sum relevant-mass)
+     (sum posterior)))
+
 #;
 (pr-mass-posterior (λ (p) (< p 0.5)) p-grid posterior)
 
@@ -45,14 +47,14 @@
     (list-ref (sort samples <) pos)))
 
 ;; lower and upper boundaries of the *middle* q percent of probability mass
-(define (percentile-interval samples q)
+(define (compatibility-interval samples q)
   (let* ([split (/ q 2)]
          [lo (- 1/2 split)]
          [hi (+ 1/2 split)])
-    (map list
-         (list lo hi)
-         (map (λ (p) (my-quantile p < samples))
-              (list lo hi)))))
+    (for/list ([p (list lo hi)])
+      (quantile p < samples)
+      #;(list p (quantile p < samples)))))
+
 
 ;; Highest Posterior Density (HPD) Interval
 ;; calculate the minimum interval that contains q percent of probability mass

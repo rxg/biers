@@ -57,7 +57,7 @@
 ;; Samples(n) -> Summary
 ;; Given samples, report the summary
 (define (summarize-samples samples)
-  (list (length (filter (λ (s) (equal? s 'water)) samples))
+  (list (count (λ (s) (equal? s 'water)) samples)
         (length samples)))
 
 ;; Samples(n) -> (listof Summary)
@@ -219,9 +219,9 @@
 ;; produce probability density for grid values
 (define (gd-pdf gd p)
   (define alist (map list (gd-grid gd) (gd-density gd)))
-  (if (not (member p (gd-grid gd)))
-      (error 'gd-pdf "Sorry, only works for exact grid values (p=~a)" p)
-      (second (assoc p alist))))
+  (cond [(assoc p alist) => second]
+        [else
+         (error 'gd-pdf "Sorry, only works for exact grid values (p=~a)" p)]))
 
 ;; produce a count-sized grid distribution for the posterior of the parameters
 (define (gd-posterior w n prior count)
@@ -230,9 +230,12 @@
   (define dist (discrete-dist p-grid posterior))
   (make-gd p-grid posterior (distribution-sample dist)))
 
+;; produce a list of (x,y) vector coordinates for the given grid
 (define (gd-coords gd)
   (map vector (gd-grid gd) (gd-density gd)))
 
+;; produce a list of (x,0) vector coordinates for the given grid
+;; used for plotting compatibility intervals.
 (define (gd-zero-coords gd)
   (define n (grid-count (gd-grid gd)))
   (map vector  (gd-grid gd)
@@ -326,6 +329,11 @@
                              #:x-min 0 #:x-max 1))
   ;; for comparison, the source of the samples
   (define sample-plot4 (plot-gd p1e3))
+
+  ;; The two simultaneously
+  (define sample-plot3vs4
+    (plot (list (density samples 2) (render-gd p1e3)) #:x-min 0 #:x-max 1))
+  
   #;(list sample-plot1 sample-plot2 sample-plot3 sample-plot4)
   (void))
 
@@ -377,12 +385,11 @@
 
 ;; lower and upper boundaries of the *middle* q percent of probability mass
 (define (compatibility-interval samples q)
-  (let* ([split (/ q 2)]
-         [lo (- 1/2 split)]
-         [hi (+ 1/2 split)])
-    (for/list ([p (list lo hi)])
-      (quantile p < samples)
-      #;(list p (quantile p < samples)))))
+  (let ([split (/ q 2)])
+    (let ([lo (- 1/2 split)]
+          [hi (+ 1/2 split)])
+      (list (quantile lo < samples)
+            (quantile hi < samples)))))
 
 ;; grid-posterior wrapper for compatibility-interval
 (define (gd-compatibility-interval gd q)
@@ -400,7 +407,7 @@
   (hpdi (gd-sample gd 10000) q))
 
 ;;
-;; exploit credibility intervals in plots
+;; render compatibility intervals in plots
 ;;
 
 ;; fill the lo-to-hi region of gd-post posterior plot
@@ -438,6 +445,11 @@
   (define plot-hpdi (plot-with-hpdi gd 0.5))
   #;(list plot-ci plot-hpdi)
   (void))
+
+
+;;
+;; Point Estimates Via Loss Functions
+;;
 
 
 ;; calculate the loss (wrt loss function loss-fn) for point p-guess against
@@ -558,7 +570,7 @@
 
 
 ;;
-;; Sampling to simulate prediction
+;; Sampling to simulate prediction (Posterior predictive checks)
 ;;
 
 
@@ -568,6 +580,19 @@
   (let ([d (binomial-dist n p)])
     (sample d count)))
 
+;; This version connects back to the stochastic simulator:
+;; explicitly draw n samples, and count nw number of waters.
+;; This sampler generates more precise information (order of draws) that it
+;; discards via counting
+(define (likelihood-sampler-via-simulation n p cnt)
+  (let ([dist (discrete-dist (list 'land 'water)
+                              (list (- 1 p) p))])
+    (for/list ([i (in-range cnt)])
+      (let* ([samples (sample dist n)]
+             [nw (count (λ (s) (equal? s 'water)) samples)])
+        nw))))
+  
+                         
 ;; Example use 
 #;
 (begin
