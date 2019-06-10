@@ -624,53 +624,6 @@
   (for/list ([p p*])
     (first (likelihood-sampler n p 1))))
 
-#;
-;; draw likelihood samples proportional to samples from a given distribution
-;; RG: THIS IS OVERKILL, just draw one outcome sample per proportion sample
-(define (predictive-dist-from-p-samples dist-samples n)
-  (for/fold ([samples empty])
-            ([p dist-samples])
-    (append (likelihood-sampler n p 10000) samples)))
-
-;;
-;; The following are previous alternative implementations with space/time issues
-;;
-
-;; THIS ONE IS A SPACE HOG, especially as the numbers get big! 
-#;
-(define (predictive-dist-from-p-samples2 dist-samples n)
-  (apply append
-         (for/list ([p dist-samples])
-           (likelihood-sampler n p 10000))))
-
-;; THIS ONE IS SLOW: maybe loops can be tuned?
-#;
-(define (predictive-dist-from-p-samples3 dist-samples n)
-  (let* ([size (* (length dist-samples) 10000)]
-         [vec (make-vector size)])
-    (for ([i (in-range 0 size 10000)]
-          [p (in-list dist-samples)])
-      (for ([s (in-list (likelihood-sampler n p 10000))]
-            [j (in-range i (+ i 10000))])
-        (vector-set! vec j s)))
-    vec))
-
-
-
-;; Timing example for predictive sampling 
-#;
-(begin
-  (define gdpost (gd-posterior 6 9 flat-prior 1000))
-  ;; draw samples from the grid approximation (Chapter 3)
-  (define post-samples (gd-sample gdpost 10000))
-
-  (define predictive-samples (void))
-  (time 
-   (set! predictive-samples (predictive-dist-from-p-samples post-samples 9)))
-  #;(define predictive-plot (time (plot (render-hist predictive-samples))))
-  (void))
-
-
 
 ;; Build a grid prior for sampling
 (define (gd-prior prior count)
@@ -682,7 +635,6 @@
 
 ;; Example of constructing a posterior predictive distribution 
 ;; and prior predictive distributions via sampling
-;; WARNING: This takes some minutes (hence the progress cues)
 #;
 (begin
   ;; grid posterior
