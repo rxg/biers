@@ -105,7 +105,7 @@
   ;; mrl is Natural -- maximum complete run length seen so far
   (define (loop s* prev crl mrl)
     (cond
-      [(empty? s*) mrl]
+      [(empty? s*) (max crl mrl)]
       [else
        (if (or (equal? prev 'none)
                (equal? (first s*) prev))
@@ -731,7 +731,10 @@
     (plot (render-hist switch-predict*)
           #:title "Posterior predictive switch frequency distribution"))
 
-  
+  ;; plot the posterior predictive run distribution (model criticism)
+  (define run-predict* (predictive-run-dist-from-p-samples post-samples 9))
+  (define run-predict-plot
+    (plot (render-hist run-predict*)))
   ;; repeat for the peaked prior (the only interesting-looking one)
   (define peak-samples (gd-sample peaked-gd 10000))
   (printf "\ngenerating prior predictive samples...")
