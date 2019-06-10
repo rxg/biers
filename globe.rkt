@@ -253,6 +253,20 @@
   (plot (render-gd gd labels?)))
 
 
+;; Cumulative Distribution Functions (Requested by Suzanna)
+(define (render-gd-cdf gd)
+  (define grid (gd-grid gd))
+  (define dens (gd-density gd))
+  (define cdf 
+    (for/list ([i (range (length grid))])
+      (* (gd-step-size gd) (sum (take dens i)))))
+  (define coords (map vector grid cdf))
+  (lines coords))
+
+(define (plot-gd-cdf gd)
+  (plot (render-gd-cdf gd)))
+
+
 ;;
 ;; More Visualization Tools
 ;;
@@ -604,9 +618,16 @@
     (plot (render-hist (likelihood-sampler 9 0.7 100000))))
   (void))
 
+;; Samples from predictive-distribution:
+;; draw one likelihood sample for each p-parameter sample
+(define (predictive-dist-from-p-samples p* n)
+  (for/list ([p p*])
+    (first (likelihood-sampler n p 1))))
 
+#;
 ;; draw likelihood samples proportional to samples from a given distribution
-(define (predictive-dist-samples dist-samples n)
+;; RG: THIS IS OVERKILL, just draw one outcome sample per proportion sample
+(define (predictive-dist-from-p-samples dist-samples n)
   (for/fold ([samples empty])
             ([p dist-samples])
     (append (likelihood-sampler n p 10000) samples)))
@@ -617,14 +638,14 @@
 
 ;; THIS ONE IS A SPACE HOG, especially as the numbers get big! 
 #;
-(define (predictive-dist-samples2 dist-samples n)
+(define (predictive-dist-from-p-samples2 dist-samples n)
   (apply append
          (for/list ([p dist-samples])
            (likelihood-sampler n p 10000))))
 
 ;; THIS ONE IS SLOW: maybe loops can be tuned?
 #;
-(define (predictive-dist-samples3 dist-samples n)
+(define (predictive-dist-from-p-samples3 dist-samples n)
   (let* ([size (* (length dist-samples) 10000)]
          [vec (make-vector size)])
     (for ([i (in-range 0 size 10000)]
@@ -644,7 +665,8 @@
   (define post-samples (gd-sample gdpost 10000))
 
   (define predictive-samples (void))
-  (time (set! predictive-samples (predictive-dist-samples post-samples 9)))
+  (time 
+   (set! predictive-samples (predictive-dist-from-p-samples post-samples 9)))
   #;(define predictive-plot (time (plot (render-hist predictive-samples))))
   (void))
 
@@ -664,6 +686,7 @@
 #;
 (begin
   ;; grid posterior
+  (printf "generating posterior...")
   (define post-gd (gd-posterior 6 9 flat-prior 10000))
 
   ;; grid priors 
@@ -672,10 +695,11 @@
   (define peaked-gd (gd-prior peaked-prior 1000))
 
   ;; Draw samples from the grid posterior approximation (Chapter 3)
+  (printf "\ngenerating posterior samples...")
   (define post-samples (gd-sample post-gd 10000))
   ;; predictive posterior samples
-  (printf "generating posterior predictive samples...")
-  (define post-predict* (predictive-dist-samples post-samples 9))
+  (printf "\ngenerating posterior predictive samples...")
+  (define post-predict* (predictive-dist-from-p-samples post-samples 9))
   ;; plot the posterior predictive distribution
   (printf "\nrendering posterior predictive frequency distribution graph...")
   (define post-predict-plot
@@ -685,7 +709,7 @@
   ;; repeat for the peaked prior (the only interesting-looking one)
   (define peak-samples (gd-sample peaked-gd 10000))
   (printf "\ngenerating prior predictive samples...")
-  (define peaked-predict* (predictive-dist-samples peak-samples 9))
+  (define peaked-predict* (predictive-dist-from-p-samples peak-samples 9))
   (printf "\nrendering prior predictive frequency distribution graph...")
   (define peaked-predict-plot
     (plot (render-hist peaked-predict*)
