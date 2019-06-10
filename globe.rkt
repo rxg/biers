@@ -73,12 +73,12 @@
     (summarize-samples (take samples n))))
 
 
-;; Two different summarizations, for use in posterior predictive checks
+;; Two alternative summarizations, for use in posterior predictive checks
 
 ;; Samples(n) -> Natural
 ;; produce the number of times the sample switches between water and land 
 (define (num-switches samples)
-  ;; Prev is one of:
+  ;; prev is one of:
   ;; - 'water
   ;; - 'land
   ;; - 'none
@@ -93,6 +93,25 @@
            (add1 (num-switches-acc (rest s*) (first s*))))]))
   (num-switches-acc samples 'none))
 
+;; Samples(n) -> Natural
+;; produce the length of the longest run
+(define (longest-run samples)
+  ;; prev is one of:
+  ;; - 'water
+  ;; - 'land
+  ;; - 'none
+  ;; previous samples seen, where false means there is no previous sample
+  ;; crl is Natural -- crun length
+  ;; mrl is Natural -- maximum complete run length seen so far
+  (define (loop s* prev crl mrl)
+    (cond
+      [(empty? s*) mrl]
+      [else
+       (if (or (equal? prev 'none)
+               (equal? (first s*) prev))
+           (loop (rest s*) (first s*) (add1 crl) mrl)
+           (loop (rest s*) (first s*) 1 (max crl mrl)))]))
+  (loop samples 'none 0 0))
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inference Engine
