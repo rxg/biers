@@ -660,6 +660,8 @@
 (define (switch-sampler n p cnt)
   (summarize-sampler n p cnt num-switches))
 
+(define (longest-run-sampler n p cnt)
+  (summarize-sampler n p cnt longest-run))
 
 ;; Example use 
 #;
@@ -683,6 +685,10 @@
   (for/list ([p p*])
     (first (switch-sampler n p 1))))
 
+;; Predictive distribution of longest-runs
+(define (predictive-run-dist-from-p-samples p* n)
+  (for/list ([p p*])
+    (first (longest-run-sampler n p 1))))
 
 ;; Build a grid prior for sampling
 (define (gd-prior prior count)
