@@ -54,10 +54,16 @@
                                    WATER-PROPORTION))])
     (sample dist n)))
 
+;; Samples(n) -> Natural
+;; produce the number of waters in the sample
+(define (num-waters samples)
+  (count (λ (s) (equal? s 'water)) samples))
+
+
 ;; Samples(n) -> Summary
 ;; Given samples, report the summary
 (define (summarize-samples samples)
-  (list (count (λ (s) (equal? s 'water)) samples)
+  (list (num-waters samples)
         (length samples)))
 
 ;; Samples(n) -> (listof Summary)
@@ -67,6 +73,27 @@
     (summarize-samples (take samples n))))
 
 
+;; Two different summarizations, for use in posterior predictive checks
+
+;; Samples(n) -> Natural
+;; produce the number of times the sample switches between water and land 
+(define (num-switches samples)
+  ;; Prev is one of:
+  ;; - 'water
+  ;; - 'land
+  ;; - 'none
+  ;; previous samples seen, where false means there is no previous sample
+  (define (num-switches-acc s* prev)
+    (cond
+      [(empty? s*) 0]
+      [else
+       (if (or (equal? prev 'none)
+               (equal? (first s*) prev))
+           (num-switches-acc (rest s*) (first s*))
+           (add1 (num-switches-acc (rest s*) (first s*))))]))
+  (num-switches-acc samples 'none))
+
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inference Engine
 ;;
@@ -598,15 +625,23 @@
 ;; explicitly draw n samples, and count nw number of waters.
 ;; This sampler generates more precise information (order of draws) that it
 ;; discards via counting
-(define (likelihood-sampler-via-simulation n p cnt)
+(define (summarize-sampler n p cnt summarize)
   (let ([dist (discrete-dist (list 'land 'water)
-                              (list (- 1 p) p))])
+                             (list (- 1 p) p))])
     (for/list ([i (in-range cnt)])
       (let* ([samples (sample dist n)]
-             [nw (count (λ (s) (equal? s 'water)) samples)])
-        nw))))
+             [summary (summarize samples)])
+        summary))))
+
+
+(define (likelihood-sampler-via-simulation n p cnt)
+  (summarize-sampler n p cnt num-waters))
   
-                         
+
+(define (switch-sampler n p cnt)
+  (summarize-sampler n p cnt num-switches))
+
+
 ;; Example use 
 #;
 (begin
@@ -623,6 +658,11 @@
 (define (predictive-dist-from-p-samples p* n)
   (for/list ([p p*])
     (first (likelihood-sampler n p 1))))
+
+;; Predictive distribution of switches using the switch sampler
+(define (predictive-switch-dist-from-p-samples p* n)
+  (for/list ([p p*])
+    (first (switch-sampler n p 1))))
 
 
 ;; Build a grid prior for sampling
@@ -658,6 +698,15 @@
     (plot (render-hist post-predict*)
           #:title "Posterior predictive frequency distribution"))
 
+  ;; plot the posterior predictive switch distribution (model criticism)
+  (printf "\ngenerating posterior predictive switch samples...")
+  (define switch-predict*
+    (predictive-switch-dist-from-p-samples post-samples 9))
+  (define switch-predict-plot
+    (plot (render-hist switch-predict*)
+          #:title "Posterior predictive switch frequency distribution"))
+
+  
   ;; repeat for the peaked prior (the only interesting-looking one)
   (define peak-samples (gd-sample peaked-gd 10000))
   (printf "\ngenerating prior predictive samples...")
