@@ -51,7 +51,7 @@
 ;;
 ;; Racket appears to use a method related to R's bw.nrd.
 #;
-(plot (density (for/list ([i (range 1000)]) (model)) 2))
+(plot (density (for/list ([i (in-range 1000)]) (model)) 2))
 
 
 
