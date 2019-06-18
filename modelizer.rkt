@@ -23,8 +23,10 @@
 
 ;; Syntax:
 ;; v ∈ Variable
+;; tdecl ∈ TypeDeclaration
 ;; vdef ∈ VariableDefinition
-;; r ∈ Variable Pattern
+;; i ∈ Index
+;; r ∈ VariablePattern
 ;; n ∈ Number
 ;; m ∈ Model
 ;; e ∈ Expression
@@ -33,11 +35,12 @@
 ;; s ∈ Symbol
 ;; p ∈ Prior
 
-;; t ::= Index | Number | (Enum s ...) 
+;; t ::= (Index)             ;; metavariable index
+;;     | (d (Enum s ...))    ;; type name and structure
 
 ;; m ::=
 ;; (new-model
-;;   [type-decls [d t] ...]
+;;   [type-decls [i . t] ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...]
 ;;   [data ...])   ;; really want data to be optional
@@ -109,9 +112,9 @@
 ;; 2) Stratified Linear Regression Model
 
 ;; (new-model
-;;   [type-decls (i Index) (m (Enum 'male 'female))]
+;;   [type-decls [i Index] [m  Sex (Enum 'male 'female)]]
 ;;   [var-decls [(h i) Number] [(μ i) Number] [(α m) Number] [β Number]
-;;              [(w i) Number] [(g i) m] [σ Number]]
+;;              [(w i) Number] [(g i) Sex] [σ Number]]
 ;;   [var-defs   [(h i) . ~ . (normal (μ i) σ)]
 ;;               [(μ i) . = . (+ (α (g i)) (* β (w i))]
 ;;               [(α m) . ~ . (normal 0 1)]
@@ -327,13 +330,53 @@
 ;;   Given a model and data to fit to it, produce a function
 ;;   that maps parameter values to relative log compatibility values
 
-(define example-model
+;; Chapter 3: Gaussian model of Kalamari forager height
+(define ex1
   `(new-model
-   [type-decls [i Index]]
-   [var-decls  [(h i) Number] [μ Number] [σ Number]]
-   [var-defs   [(h i) . ~ . (normal μ σ)]
-               [μ     . ~ . (normal 178 20)]
-               [σ     . ~ . (uniform 0 50)]]))
+    [type-decls [i Index]]
+    [var-decls  [(h i) Number] [μ Number] [σ Number]]
+    [var-defs   [(h i) . ~ . (normal μ σ)]
+                [μ     . ~ . (normal 178 20)]
+                [σ     . ~ . (uniform 0 50)]]))
+
+;; Chapter 3: Schematic of a linear regression (with a prior on the predictor)
+(define ex2
+  `(new-model
+    [type-decls [i Index]]
+    [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
+                [(x i) Number]]
+    [var-defs   [(y i) . ~ . (normal μ σ)]
+                [(μ i) . = . (* β (x i))]
+                [β     . ~ . (normal 0 10)]
+                [σ     . ~ . (exponential 1)]
+                [(x i) . ~ . (normal 0 1)]]))
+
+;; Indicator variable for male (0 = not male, 1 = male)
+;; This is essentially Student's t-test encoded as a linear model,
+;; without the decision (just the estimation)
+(define ex3
+  `(new-model
+    [type-decls [i Index]]
+    [var-decls  [(h i) Number] [(μ i) Number] [α Number] [βm Number]
+                [σ Number] [(m i) Number]]
+    [var-defs   [(h i) . ~ . (normal μ σ)]
+                [(μ i) . = . (+ α (* βm (m i)))]
+                [α     . ~ . (normal 178 20)]
+                [βm    . ~ . (normal 0 1)]
+                [σ     . ~ . (uniform 0 50)]
+                [(m i) . ~ . (discrete (0 0.5) (1 0.5))]]))
+
+;; Chapter ??: Index variable
+(define ex4
+  `(new-model
+    [type-decls [i Index] [j Sex (Enum 'male 'female)]]
+    [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex]
+                [σ Number] [(m i) Number]]
+    [var-defs   [(h i) . ~ . (normal μ σ)]
+                [(μ i) . = . (α (sex i))]
+                [(α j) . ~ . (normal 178 20)]
+                [σ     . ~ . (uniform 0 50)]
+                [(sex i) . ~ . (discrete ('female 0.5) ('male 0.5))]]))
 
 ;; 
 #;(make-log-compat-fn example-model)
@@ -377,7 +420,7 @@
 
 ;; m ::=
 ;; (new-model
-;;   [type-decls [d t] ...]
+;;   [type-decls [i . t] ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...])
 
@@ -387,32 +430,30 @@
 (define (get-variable-names model)
   (match model
     [`(new-model
-       [type-decls [,d* ,t*] ...]
+       [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
      r*]))
 
 (module+ test
-  (check-equal? (get-variable-names example-model)
-                '((h i) μ σ)))
+  (check-equal? (get-variable-names ex1) '((h i) μ σ)))
 
 ;; Model -> Symbol
-;; get the type name of the index variable.  There must be one
+;; get the name of the index variable.  There must be one
 (define (get-index model)
   (match model
     [`(new-model
-       [type-decls [,d* ,t*] ...]
+       [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
      ;; Find the first type declaration with type 'Index
-     (let ([result (assoc 'Index (map cons t* d*))])
+     (let ([result (assoc '(Index) (map cons t* i*))])
        (if result
            (cdr result)
            (error 'get-index "No Index specified.")))]))
 
 (module+ test
-  (check-equal? (get-index example-model)
-                'i))
+  (check-equal? (get-index ex1) 'i))
 
 
 ;; Model -> (listof VarDef)
@@ -420,21 +461,52 @@
 (define (get-variable-defs model)
   (match model
     [`(new-model
-       [type-decls [,d* ,t*] ...]
+       [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
      vdef*]))
 
 (module+ test
-  (check-equal? (get-variable-defs example-model)
+  (check-equal? (get-variable-defs ex1)
                 '([(h i) . ~ . (normal μ σ)]
                   [μ     . ~ . (normal 178 20)]
                   [σ     . ~ . (uniform 0 50)])))
 
-;; !!!
+
+;; Model -> (listof VariablePattern)
+;; the variables defined using "="
 (define (get-derived-variables model)
-  ;; those variables defined using "="
-  empty)
+  (define vdef* (get-variable-defs model))
+  (filter-map (λ (vdef)
+                (match vdef
+                  [`(,r . = . ,e) r]
+                  [`(,r . ~ . ,e) #f]
+                  [`,otherwise
+                   (error 'get-derived-variables "Bad variable definition: ~n"
+                          otherwise)]))
+              vdef*))
+
+(module+ test
+  (check-equal? (get-derived-variables ex1) '())
+  (check-equal? (get-derived-variables ex2) '((μ i))))
+
+
+;; Model -> (listof VariablePattern)
+;; the variables defined using "="
+(define (get-original-variables model)
+  (define vdef* (get-variable-defs model))
+  (filter-map (λ (vdef)
+                (match vdef
+                  [`(,r . = . ,e) #f]
+                  [`(,r . ~ . ,e) r]
+                  [`,otherwise
+                   (error 'get-original-variables "Bad variable definition: ~n"
+                          otherwise)]))
+              vdef*))
+
+(module+ test
+  (check-equal? (get-original-variables ex1) '((h i) μ σ))
+  (check-equal? (get-original-variables ex2) '((y i) β σ (x i))))
 
 
 ;; !!!
@@ -443,8 +515,8 @@
 (define (get-observed-variables model data)
   ;; the observed variables are named in "data" though without the
   ;; index variable.  We should confirm that the data and model are in sync
-  ;; in that regard.  (any parameter named "(v i)" where "i" is the index
-  ;; variable, should appear as a vector "v" in the data table
+  ;; in that regard.  (any original variable named "(v i)" where "i"
+  ;; is the indexx should appear as a vector "v" in the data table (I think)
   empty)
 
 
