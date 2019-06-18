@@ -1,5 +1,7 @@
 #lang racket
 
+;(require test-engine/racket-tests) ;; for check-expect
+(require rackunit)
 
 ;;
 ;; modelizer.rkt - Some tools for approximately fitting
@@ -38,7 +40,7 @@
 ;;   [type-decls [d t] ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...]
-;;   [data ...])
+;;   [data ...])   ;; really want data to be optional
 
 ;; vdef ::= [r . ~ . p]              ;; prior distribution
 ;;        | [r . = . e]              ;; definition 
@@ -321,45 +323,157 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;
-;; make-log-plaus-fn:
+;; make-log-compat-fn:
 ;;   Given a model and data to fit to it, produce a function
-;;   that maps parameter values to relative log plausibility values
+;;   that maps parameter values to relative log compatibility values
 
-(make-log-plaus-fn
- `(new-model
+(define example-model
+  `(new-model
    [type-decls [i Index]]
    [var-decls  [(h i) Number] [μ Number] [σ Number]]
    [var-defs   [(h i) . ~ . (normal μ σ)]
                [μ     . ~ . (normal 178 20)]
                [σ     . ~ . (uniform 0 50)]]))
 
-(define (make-log-plaus-fn model data)
-  (define variables (get-variables model))
+;; 
+#;(make-log-compat-fn example-model)
+
+;; !!!
+;; Given a model and some data to fit to it, create a log-compatible function
+;; suitable for quadratic approximation
+(define (make-log-compat-fn model data)
+  (define variables (get-variable-names model))
   (define index (get-index model))
+  (define var-defs (get-variable-defs model))
   (define observed (get-observed-variables model data))
   (define targets (get-target-variables model data))
-  #f)
+  ;; targets gives us an ordering for values
+
+  ;; create a function from targets to Real
+  ;; given a set of targets, compute the log-compatibility
+  ;; of all of the targets, given the observations
+  ;; note that the observations are indexed on Index
+  ;; (that's how we know how many observation variables there are)
+
+  ;; To compute:
+  ;; going from last-to-first, compute log-likelihoods
+  ;; - target variable priors just turn into log-probabilities given
+  ;;   the provided target value. Contribute no new bindings.
+  ;; - non-target parameters (i.e., equations) just turn into environment
+  ;;   bindings for use in "earlier" priors.  May form a "vector" or otherwise
+  ;;   indexed set of data. Contribute nothing to log probability
+  ;; - observed variable priors also turn into log-probabilities, though
+  ;;   splayed across the Index observations (so there's an implicit map)
+  ;;   contribute no new bindings.
+  ;;
+  ;;   So evaluation is essentially a "foldr" that produces a pair of an
+  ;;   environment-and-cumulative-log-joint-compatibility value (summed up).
+
+  (define (lc-fn tgt-values)
+    (define env0 (make-env targets tgt-values))
+    (define likelihood0 0)
+    #f)
+  lc-fn)
+
+;; m ::=
+;; (new-model
+;;   [type-decls [d t] ...]
+;;   [var-decls [r d] ...]
+;;   [var-defs vdef ...])
 
 
 ;; Model -> (listOf Symbol)
 ;; get the names of the parameters
-(define (get-variables model) empty)
+(define (get-variable-names model)
+  (match model
+    [`(new-model
+       [type-decls [,d* ,t*] ...]
+       [var-decls  [,r* ,dr*] ...]
+       [var-defs   ,vdef* ...])
+     r*]))
+
+(module+ test
+  (check-equal? (get-variable-names example-model)
+                '((h i) μ σ)))
 
 ;; Model -> Symbol
 ;; get the type name of the index variable.  There must be one
-(define (get-index model) 'i)
+(define (get-index model)
+  (match model
+    [`(new-model
+       [type-decls [,d* ,t*] ...]
+       [var-decls  [,r* ,dr*] ...]
+       [var-defs   ,vdef* ...])
+     ;; Find the first type declaration with type 'Index
+     (let ([result (assoc 'Index (map cons t* d*))])
+       (if result
+           (cdr result)
+           (error 'get-index "No Index specified.")))]))
 
+(module+ test
+  (check-equal? (get-index example-model)
+                'i))
+
+
+;; Model -> (listof VarDef)
+;; get the variable definitions
+(define (get-variable-defs model)
+  (match model
+    [`(new-model
+       [type-decls [,d* ,t*] ...]
+       [var-decls  [,r* ,dr*] ...]
+       [var-defs   ,vdef* ...])
+     vdef*]))
+
+(module+ test
+  (check-equal? (get-variable-defs example-model)
+                '([(h i) . ~ . (normal μ σ)]
+                  [μ     . ~ . (normal 178 20)]
+                  [σ     . ~ . (uniform 0 50)])))
+
+;; !!!
+(define (get-derived-variables model)
+  ;; those variables defined using "="
+  empty)
+
+
+;; !!!
 ;; get the names of the observed variables that will be used to
 ;; condition the rest of the model.
-(define (get-observed-variables model data) empty)
+(define (get-observed-variables model data)
+  ;; the observed variables are named in "data" though without the
+  ;; index variable.  We should confirm that the data and model are in sync
+  ;; in that regard.  (any parameter named "(v i)" where "i" is the index
+  ;; variable, should appear as a vector "v" in the data table
+  empty)
 
+
+;; !!!
 ;; get the names of the unobserved variables (i.e., the rest)
-(define (get-unobserved-variables model data) empty)
+(define (get-unobserved-variables model data)
+  ;; (get-variable-names model data)
+  ;; minus
+  ;; (get-observed-variables)
+  empty)
+
 
 ;; TERMINOLOGY: for lack of a better word, I will use the name
 ;; "target variables" for the direct targets of inference, i.e., those
 ;; unobserved variables that will be directly conditioned with respect to the
 ;; data. This omits derived variables e.g., linear models.
 
+;; !!!
 ;; get the names of the target variables of inference
-(define (get-target-variables model data) empty)
+(define (get-target-variables model data)
+  ;; target variables are the unobserved variables that have associated
+  ;; distributions (i.e., are NOT defined using "=")
+  ;; (get-unobserved-variables model data)
+  ;; minus
+  ;; (get-derived-variables model)
+  empty)
+
+
+;; !!!
+;; given a list of targets and values, produce an environment.
+;; Will need to deal with indexed target parameters somehow.
+(define (make-env names values) empty)
