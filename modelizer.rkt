@@ -33,29 +33,26 @@
 ;; d ∈ DataType
 ;; t ∈ TypeSpec
 ;; s ∈ Symbol
-;; p ∈ Prior
-
+;; p ∈ PriorDistribution
 
 ;; m ::=
 ;; (model
 ;;   [type-decls tdecl ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...]
-;;   [data ...])   ;; really want data to be optional
+;;   [data ...]                ;; data used to fit the model, if any
+;;   [fit ...])                ;; posterior, if the model has been fit to data
 
 ;; tdecl ::= [i Row]                 ;; Row index metavariable
-;;         | [i d (Enum s ...)]      ;; Enum index, type name, and structure
-;; (Alternate uniform decomposition:
-;;    tdecl ::= [i . t] 
-;;    t ::= (Row)               
-;;        | (d (Enum s ...))    
-;; )
+;;         | [i d (Enum s ...)]      ;; Enum index, type name, and elements
+;; Alternate uniform decomposition:
+;;    tdecl ::= [i . t]  where t ::= (Row) | (d (Enum s ...))    
 
 ;; vdef ::= [r . ~ . p]              ;; prior distribution
 ;;        | [r . = . e]              ;; definition 
 
 ;; r ::= v           ;; atomic variable
-;;     | (v d)       ;; indexed family of variables
+;;     | (v i)       ;; indexed family of variables
 ;;     | (v e)       ;; indexed variable
 ;;     | #(r r ...)  ;; vector of variables
 
@@ -83,54 +80,58 @@
 
 ;; Notes:
 ;; - dependency order for var-defs is last-to-first, to match stat models.
-;;   think of it like let* in reverse
-;;   For now, we will not attempt to re-order to match dependencies.
-;; - data type and variable names must be disjoint
+;;   Think of it like let* in reverse. No re-ordering to match dependencies.
+;; - data type, index variables, and variable are disjoint
+;;   by convention, data types are capitalized, index 
+
+;; Terminological notes:
+;; - I will distinguish between several notions of variable:
+;;   1) variable name (e.g. μ, α, x): just the unique root name
+;;   2) variable scheme (e.g. (μ i), (α s), x): with relevant index metavariable
+;;   3) variable reference (e.g. (μ 7), (α 'male), x):  a particular instance.
 
 ;; Examples:
 
 ;; 0) Normal Model (0-ary Linear Regression)
-
-;; (model
-;;   [type-decls [i Row]]
-;;   [var-decls  [(h i) Number] [μ Number] [σ Number]]
-;;   [var-defs   [(h i) . ~ . (normal (μ σ)]
-;;               [μ     . ~ . (normal 178 20)]
-;;               [σ     . ~ . (uniform 0 50)]])
+(define example0
+  '(model
+    [type-decls [i Row]]
+    [var-decls  [(h i) Number] [μ Number] [σ Number]]
+    [var-defs   [(h i) . ~ . (normal (μ σ))]
+                [μ     . ~ . (normal 178 20)]
+                [σ     . ~ . (uniform 0 50)]]))
 
 ;; 1) Linear Regression
-
-;; (model
-;;   [type-decls [i Row]]
-;;   [var-decls  [(h i) Number] [(μ i) Number] [α Number] [β Number]
-;;               [(w i) Number] [σ Number]]
-;;   [var-defs   [(h i) . ~ . (normal (μ i) σ)]
-;;               [(μ i) . = . (+ α (* β (w i))]
-;;               [α     . ~ . (normal 0 1)]
-;;               [β     . ~ . (normal 0 1)]
-;;               [(w i) . ~ . (normal 80 5)]]
-;;               [σ     . ~ . (log-normal 100 100)]])
-;;
 ;; Inference will expect to get height and weight inputs.
 ;; α, β, and σ are subject to inference
+(define example1
+  '(model
+    [type-decls [i Row]]
+    [var-decls  [(h i) Number] [(μ i) Number] [α Number] [β Number]
+                [(w i) Number] [σ Number]]
+    [var-defs   [(h i) . ~ . (normal (μ i) σ)]
+                [(μ i) . = . (+ α (* β (w i)))]
+                [α     . ~ . (normal 0 1)]
+                [β     . ~ . (normal 0 1)]
+                [(w i) . ~ . (normal 80 5)]
+                [σ     . ~ . (log-normal 100 100)]]))
 
 
 ;; 2) Stratified Linear Regression Model
-
-;; (model
-;;   [type-decls [i Row] [m  Sex (Enum 'male 'female)]]
-;;   [var-decls [(h i) Number] [(μ i) Number] [(α m) Number] [β Number]
-;;              [(w i) Number] [(g i) Sex] [σ Number]]
-;;   [var-defs   [(h i) . ~ . (normal (μ i) σ)]
-;;               [(μ i) . = . (+ (α (g i)) (* β (w i))]
-;;               [(α m) . ~ . (normal 0 1)]
-;;               [β     . ~ . (normal 0 1)]
-;;               [(w i) . ~ . (normal 80 5)]]
-;;               [(g i) . ~ . (discrete ('male 1) ('female 1))]
-;;               [σ     . ~ . (log-normal 100 100)]])
-;;
 ;; Inference will expect to get height and weight inputs.
 ;; α, β, and σ are subject to inference
+(define example2
+  '(model
+    [type-decls [i Row] [m  Sex (Enum 'male 'female)]]
+    [var-decls [(h i) Number] [(μ i) Number] [(α m) Number] [β Number]
+               [(w i) Number] [(g i) Sex] [σ Number]]
+    [var-defs   [(h i) . ~ . (normal (μ i) σ)]
+                [(μ i) . = . (+ (α (g i)) (* β (w i)))]
+                [(α m) . ~ . (normal 0 1)]
+                [β     . ~ . (normal 0 1)]
+                [(w i) . ~ . (normal 80 5)]
+                [(g i) . ~ . (discrete ('male 1) ('female 1))]
+                [σ     . ~ . (log-normal 100 100)]]))
 
 
 ;; Operations:
@@ -461,6 +462,9 @@
 (module+ test
   (check-equal? (get-row-index ex1) 'i))
 
+;; Helper
+(define (uniquify-list lst)
+  (set->list (list->set lst)))
 
 ;; Model -> (listof VarDef)
 ;; get the variable definitions
@@ -485,7 +489,8 @@
   (define vdef* (get-variable-defs model))
   (filter-map (λ (vdef)
                 (match vdef
-                  [`(,r . = . ,e) r]
+                  [`(,v . = . ,e) #:when (symbol? v) v]
+                  [`((,v ,i) . = . ,e) #:when (symbol? v) v]
                   [`(,r . ~ . ,e) #f]
                   [`,otherwise
                    (error 'get-derived-variables "Bad variable definition: ~n"
@@ -494,7 +499,7 @@
 
 (module+ test
   (check-equal? (get-derived-variables ex1) '())
-  (check-equal? (get-derived-variables ex2) '((μ i))))
+  (check-equal? (get-derived-variables ex2) '(μ)))
 
 
 ;; Model -> (listof VariablePattern)
@@ -504,15 +509,16 @@
   (filter-map (λ (vdef)
                 (match vdef
                   [`(,r . = . ,e) #f]
-                  [`(,r . ~ . ,e) r]
+                  [`(,v . ~ . ,e) #:when (symbol? v) v]
+                  [`((,v ,i) . ~ . ,e) #:when (symbol? v) v]
                   [`,otherwise
                    (error 'get-original-variables "Bad variable definition: ~n"
                           otherwise)]))
               vdef*))
 
 (module+ test
-  (check-equal? (get-original-variables ex1) '((h i) μ σ))
-  (check-equal? (get-original-variables ex2) '((y i) β σ (x i))))
+  (check-equal? (get-original-variables ex1) '(h μ σ))
+  (check-equal? (get-original-variables ex2) '(y β σ x)))
 
 
 ;; !!!
@@ -563,7 +569,8 @@
 (define (make-env names values)
   (map list names values))
 
-;; Env -> (listof Name) 
+;; Env -> (listof Name)
+;; produce the names of variables bound by the given environment
 (define (get-env-vars env)
   (map first env))
 
