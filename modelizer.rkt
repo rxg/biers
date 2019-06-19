@@ -35,15 +35,21 @@
 ;; s ∈ Symbol
 ;; p ∈ Prior
 
-;; t ::= (Index)             ;; metavariable index
-;;     | (d (Enum s ...))    ;; type name and structure
 
 ;; m ::=
-;; (new-model
-;;   [type-decls [i . t] ...]
+;; (model
+;;   [type-decls tdecl ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...]
 ;;   [data ...])   ;; really want data to be optional
+
+;; tdecl ::= [i Row]                 ;; Row index metavariable
+;;         | [i d (Enum s ...)]      ;; Enum index, type name, and structure
+;; (Alternate uniform decomposition:
+;;    tdecl ::= [i . t] 
+;;    t ::= (Row)               
+;;        | (d (Enum s ...))    
+;; )
 
 ;; vdef ::= [r . ~ . p]              ;; prior distribution
 ;;        | [r . = . e]              ;; definition 
@@ -85,8 +91,8 @@
 
 ;; 0) Normal Model (0-ary Linear Regression)
 
-;; (new-model
-;;   [type-decls [i Index]]
+;; (model
+;;   [type-decls [i Row]]
 ;;   [var-decls  [(h i) Number] [μ Number] [σ Number]]
 ;;   [var-defs   [(h i) . ~ . (normal (μ σ)]
 ;;               [μ     . ~ . (normal 178 20)]
@@ -94,8 +100,8 @@
 
 ;; 1) Linear Regression
 
-;; (new-model
-;;   [type-decls [i Index]]
+;; (model
+;;   [type-decls [i Row]]
 ;;   [var-decls  [(h i) Number] [(μ i) Number] [α Number] [β Number]
 ;;               [(w i) Number] [σ Number]]
 ;;   [var-defs   [(h i) . ~ . (normal (μ i) σ)]
@@ -111,8 +117,8 @@
 
 ;; 2) Stratified Linear Regression Model
 
-;; (new-model
-;;   [type-decls [i Index] [m  Sex (Enum 'male 'female)]]
+;; (model
+;;   [type-decls [i Row] [m  Sex (Enum 'male 'female)]]
 ;;   [var-decls [(h i) Number] [(μ i) Number] [(α m) Number] [β Number]
 ;;              [(w i) Number] [(g i) Sex] [σ Number]]
 ;;   [var-defs   [(h i) . ~ . (normal (μ i) σ)]
@@ -143,8 +149,8 @@
 ;; )
 
 ;; (define flist0
-;;   (new-model
-;;     [types     [i Index]]
+;;   (model
+;;     [types     [i Row]]
 ;;     [var-decls [(dist i) Number] [α Number] [β Number]
 ;;                [(speed i) Number] [σ Number]]
 ;;     [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i)) σ)]
@@ -163,8 +169,8 @@
 ;;
 
 ;; (define flist0
-;;   (new-model
-;;     [types     [i Index]]
+;;   (model
+;;     [types     [i Row]]
 ;;     [var-decls [(dist i) Number] [α Number] [β Number]
 ;;                [(speed i) Number] [σ Number]]
 ;;     [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
@@ -186,8 +192,8 @@
 ;;
 
 ;; (define flist1
-;;   (new-model
-;;     [types     [i Index]]
+;;   (model
+;;     [types     [i Row]]
 ;;     [var-decls [(dist i) Number] [α Number] [β Number]
 ;;                [(speed i) Number] [σ Number]]
 ;;     [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i)) σ)]
@@ -207,8 +213,8 @@
 ;;
 
 ;; (define flist1
-;;   (new-model
-;;     [types     [i Index]]
+;;   (model
+;;     [types     [i Row]]
 ;;     [var-decls [(dist i) Number] [α Number] [β Number]
 ;;                [(speed i) Number] [σ Number]]
 ;;     [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
@@ -332,8 +338,8 @@
 
 ;; Chapter 3: Gaussian model of Kalamari forager height
 (define ex1
-  `(new-model
-    [type-decls [i Index]]
+  `(model
+    [type-decls [i Row]]
     [var-decls  [(h i) Number] [μ Number] [σ Number]]
     [var-defs   [(h i) . ~ . (normal μ σ)]
                 [μ     . ~ . (normal 178 20)]
@@ -341,8 +347,8 @@
 
 ;; Chapter 3: Schematic of a linear regression (with a prior on the predictor)
 (define ex2
-  `(new-model
-    [type-decls [i Index]]
+  `(model
+    [type-decls [i Row]]
     [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
                 [(x i) Number]]
     [var-defs   [(y i) . ~ . (normal μ σ)]
@@ -355,8 +361,8 @@
 ;; This is essentially Student's t-test encoded as a linear model,
 ;; without the decision (just the estimation)
 (define ex3
-  `(new-model
-    [type-decls [i Index]]
+  `(model
+    [type-decls [i Row]]
     [var-decls  [(h i) Number] [(μ i) Number] [α Number] [βm Number]
                 [σ Number] [(m i) Number]]
     [var-defs   [(h i) . ~ . (normal μ σ)]
@@ -368,8 +374,8 @@
 
 ;; Chapter ??: Index variable
 (define ex4
-  `(new-model
-    [type-decls [i Index] [j Sex (Enum 'male 'female)]]
+  `(model
+    [type-decls [i Row] [j Sex (Enum 'male 'female)]]
     [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex]
                 [σ Number] [(m i) Number]]
     [var-defs   [(h i) . ~ . (normal μ σ)]
@@ -386,7 +392,7 @@
 ;; suitable for quadratic approximation
 (define (make-log-compat-fn model data)
   (define variables (get-variable-names model))
-  (define index (get-index model))
+  (define index (get-row-index model))
   (define var-defs (get-variable-defs model))
   (define observed (get-observed-variables model data))
   (define targets (get-target-variables model data))
@@ -395,7 +401,7 @@
   ;; create a function from targets to Real
   ;; given a set of targets, compute the log-compatibility
   ;; of all of the targets, given the observations
-  ;; note that the observations are indexed on Index
+  ;; note that the observations are indexed on Row
   ;; (that's how we know how many observation variables there are)
 
   ;; To compute:
@@ -406,7 +412,7 @@
   ;;   bindings for use in "earlier" priors.  May form a "vector" or otherwise
   ;;   indexed set of data. Contribute nothing to log probability
   ;; - observed variable priors also turn into log-probabilities, though
-  ;;   splayed across the Index observations (so there's an implicit map)
+  ;;   splayed across the Row observations (so there's an implicit map)
   ;;   contribute no new bindings.
   ;;
   ;;   So evaluation is essentially a "foldr" that produces a pair of an
@@ -419,7 +425,7 @@
   lc-fn)
 
 ;; m ::=
-;; (new-model
+;; (model
 ;;   [type-decls [i . t] ...]
 ;;   [var-decls [r d] ...]
 ;;   [var-defs vdef ...])
@@ -429,7 +435,7 @@
 ;; get the names of the parameters
 (define (get-variable-names model)
   (match model
-    [`(new-model
+    [`(model
        [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
@@ -439,28 +445,28 @@
   (check-equal? (get-variable-names ex1) '((h i) μ σ)))
 
 ;; Model -> Symbol
-;; get the name of the index variable.  There must be one
-(define (get-index model)
+;; get the name of the row index variable.  There must be one
+(define (get-row-index model)
   (match model
-    [`(new-model
+    [`(model
        [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
-     ;; Find the first type declaration with type 'Index
-     (let ([result (assoc '(Index) (map cons t* i*))])
+     ;; Find the first type declaration with type 'Row
+     (let ([result (assoc '(Row) (map cons t* i*))])
        (if result
            (cdr result)
-           (error 'get-index "No Index specified.")))]))
+           (error 'get-row-index "No Row index specified.")))]))
 
 (module+ test
-  (check-equal? (get-index ex1) 'i))
+  (check-equal? (get-row-index ex1) 'i))
 
 
 ;; Model -> (listof VarDef)
 ;; get the variable definitions
 (define (get-variable-defs model)
   (match model
-    [`(new-model
+    [`(model
        [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
@@ -514,9 +520,9 @@
 ;; condition the rest of the model.
 (define (get-observed-variables model data)
   ;; the observed variables are named in "data" though without the
-  ;; index variable.  We should confirm that the data and model are in sync
+  ;; row index variable.  We should confirm that the data and model are in sync
   ;; in that regard.  (any original variable named "(v i)" where "i"
-  ;; is the indexx should appear as a vector "v" in the data table (I think)
+  ;; is the row index should appear as a vector "v" in the data table (I think)
   empty)
 
 
@@ -544,8 +550,23 @@
   ;; (get-derived-variables model)
   empty)
 
+;; Name is one of:
+;; - Symbol
+;; - (list Symbol Index)
+
+;; Env is (listof (list Name Value))
 
 ;; !!!
 ;; given a list of targets and values, produce an environment.
 ;; Will need to deal with indexed target parameters somehow.
-(define (make-env names values) empty)
+;; (listof Symbol) (listof Value) -> Env
+(define (make-env names values)
+  (map list names values))
+
+;; Env -> (listof Name) 
+(define (get-env-vars env)
+  (map first env))
+
+(module+ test
+  (check-equal? (make-env '(a b c) (list #(1 2 3) 4 5))
+                '((a #(1 2 3)) (b 4) (c 5))))
