@@ -25,7 +25,8 @@
 ;; v ∈ Variable
 ;; tdecl ∈ TypeDeclaration
 ;; vdef ∈ VariableDefinition
-;; i ∈ Index
+;; i ∈ IndexMetavariable
+;; k ∈ Index
 ;; r ∈ VariablePattern
 ;; n ∈ Number
 ;; m ∈ Model
@@ -77,6 +78,7 @@
 ;;     | (exp e)
 ;;     | #(e e ...)
 
+;; k ::= s | n  ;; actual indices are either symbols or numbers
 
 ;; Notes:
 ;; - dependency order for var-defs is last-to-first, to match stat models.
@@ -92,14 +94,6 @@
 
 ;; Examples:
 
-;; 0) Normal Model (0-ary Linear Regression)
-(define example0
-  '(model
-    [type-decls [i Row]]
-    [var-decls  [(h i) Number] [μ Number] [σ Number]]
-    [var-defs   [(h i) . ~ . (normal (μ σ))]
-                [μ     . ~ . (normal 178 20)]
-                [σ     . ~ . (uniform 0 50)]]))
 
 ;; 1) Linear Regression
 ;; Inference will expect to get height and weight inputs.
@@ -148,41 +142,36 @@
 ;; flist0 <- list(
 ;;     dist ~ dnorm( mean=a+b*speed , sd=sigma )
 ;; )
+;; linear model integrated right into the likelihood
+(define flist0a
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i)) σ))]
+               [α         . ~ . (normal 0 1)]
+               [β         . ~ . (normal 0 1)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (log-normal 100 100)]]))
 
-;; (define flist0
-;;   (model
-;;     [types     [i Row]]
-;;     [var-decls [(dist i) Number] [α Number] [β Number]
-;;                [(speed i) Number] [σ Number]]
-;;     [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i)) σ)]
-;;                [α         . ~ . (normal 0 1)]
-;;                [β         . ~ . (normal 0 1)]
-;;                [(speed i) . ~ . (normal 80 5)]]
-;;                [σ         . ~ . (log-normal 100 100)]]))
 
-
-;;
 ;;;;;;;;;;
 ;;flist0 <- list(
 ;;    dist ~ dnorm( mean=mu , sd=sigma ) ,
 ;;    mu ~ a+b*speed
 ;;)
-;;
-
-;; (define flist0
-;;   (model
-;;     [types     [i Row]]
-;;     [var-decls [(dist i) Number] [α Number] [β Number]
-;;                [(speed i) Number] [σ Number]]
-;;     [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
-;;                [(μ i)     . = . (+ α (* β (speed i))]
-;;                [α         . ~ . (normal 0 1)]
-;;                [β         . ~ . (normal 0 1)]
-;;                [(speed i) . ~ . (normal 80 5)]]
-;;                [σ         . ~ . (log-normal 100 100)]]))
-
-
-
+;; linear model defined separately
+(define flist0b
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
+               [(μ i)     . = . (+ α (* β (speed i)))]
+               [α         . ~ . (normal 0 1)]
+               [β         . ~ . (normal 0 1)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (log-normal 100 100)]]))
 
 ;;;;;;;;;;
 ;;flist1 <- list(
@@ -191,17 +180,16 @@
 ;;    sigma ~ dcauchy(0,1)
 ;;)
 ;;
-
-;; (define flist1
-;;   (model
-;;     [types     [i Row]]
-;;     [var-decls [(dist i) Number] [α Number] [β Number]
-;;                [(speed i) Number] [σ Number]]
-;;     [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i)) σ)]
-;;                [α         . ~ . (normal 0 1)]
-;;                [β         . ~ . (normal 0 1)]
-;;                [(speed i) . ~ . (normal 80 5)]]
-;;                [σ         . ~ . (cauchy 0 1)]]))
+(define flist1a
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i))) σ)]
+               [α         . ~ . (normal 0 1)]
+               [β         . ~ . (normal 0 1)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (cauchy 0 1)]]))
 
 
 ;;;;;;;;;;
@@ -212,18 +200,17 @@
 ;;    sigma ~ dcauchy(0,1)
 ;;)
 ;;
-
-;; (define flist1
-;;   (model
-;;     [types     [i Row]]
-;;     [var-decls [(dist i) Number] [α Number] [β Number]
-;;                [(speed i) Number] [σ Number]]
-;;     [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
-;;                [(μ i)     . = . (+ α (* β (speed i))]
-;;                [α         . ~ . (normal 0 1)]
-;;                [β         . ~ . (normal 0 1)]
-;;                [(speed i) . ~ . (normal 80 5)]]
-;;                [σ         . ~ . (cauchy 0 1)]]))
+(define flist1b
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (μ i) σ)]
+               [(μ i)     . = . (+ α (* β (speed i)))]
+               [α         . ~ . (normal 0 1)]
+               [β         . ~ . (normal 0 1)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (cauchy 0 1)]]))
 
 
 ;;;;;;;;;;
@@ -232,8 +219,17 @@
 ;;    c(a,b) ~ dnorm(0,10) , 
 ;;    sigma ~ dcauchy(0,1)
 ;;)
-;;
-
+;; use vector to assign a and b the same distribution (hurm...)
+(define flist2
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i))) σ)]
+               [α         . ~ . (normal 0 10)]
+               [β         . ~ . (normal 0 10)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (cauchy 0 1)]]))
 
 
 ;;;;;;;;;;
@@ -243,7 +239,16 @@
 ;;    sigma ~ dcauchy(0,1)
 ;;)
 ;;
-
+(define flist3
+  '(model
+    [types     [i Row]]
+    [var-decls [(dist i) Number] [α Number] [β Number]
+               [(speed i) Number] [σ Number]]
+    [var-defs  [(dist i)  . ~ . (normal (+ α (* β (speed i))) σ)]
+               [α         . ~ . (normal 0 1)]
+               [β         . ~ . (laplace 1)]
+               [(speed i) . ~ . (normal 80 5)]
+               [σ         . ~ . (cauchy 0 1)]]))
 
 ;; Example of fitting
 ;;fit <- map( flist1,
@@ -334,7 +339,7 @@
 
 ;;
 ;; make-log-compat-fn:
-;;   Given a model and data to fit to it, produce a function
+;;   Given a model and data to fit it tp, produce a function
 ;;   that maps parameter values to relative log compatibility values
 
 ;; Chapter 3: Gaussian model of Kalamari forager height
@@ -346,18 +351,19 @@
                 [μ     . ~ . (normal 178 20)]
                 [σ     . ~ . (uniform 0 50)]]))
 
-;; Chapter 3: Schematic of a linear regression (with a prior on the predictor)
+;; Chapter 3: Schematic of a linear regression (force 0 intercept)
 (define ex2
   `(model
     [type-decls [i Row]]
     [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
                 [(x i) Number]]
-    [var-defs   [(y i) . ~ . (normal μ σ)]
+    [var-defs   [(y i) . ~ . (normal (μ i) σ)]
                 [(μ i) . = . (* β (x i))]
                 [β     . ~ . (normal 0 10)]
                 [σ     . ~ . (exponential 1)]
                 [(x i) . ~ . (normal 0 1)]]))
 
+;; Chapter 5:
 ;; Indicator variable for male (0 = not male, 1 = male)
 ;; This is essentially Student's t-test encoded as a linear model,
 ;; without the decision (just the estimation)
@@ -373,7 +379,9 @@
                 [σ     . ~ . (uniform 0 50)]
                 [(m i) . ~ . (discrete (0 0.5) (1 0.5))]]))
 
-;; Chapter ??: Index variable
+;; Chapter 5: Index variable, which is less hacky than an indicator variable IMO
+;; This is not exactly the same as above: models (α 'male) and (α 'female)
+;; instead of α and (+ α βm) (yuk!)
 (define ex4
   `(model
     [type-decls [i Row] [j Sex (Enum 'male 'female)]]
@@ -392,7 +400,7 @@
 ;; Given a model and some data to fit to it, create a log-compatible function
 ;; suitable for quadratic approximation
 (define (make-log-compat-fn model data)
-  (define variables (get-variable-names model))
+  (define variables (get-variable-schemes model))
   (define index (get-row-index model))
   (define var-defs (get-variable-defs model))
   (define observed (get-observed-variables model data))
@@ -425,16 +433,10 @@
     #f)
   lc-fn)
 
-;; m ::=
-;; (model
-;;   [type-decls [i . t] ...]
-;;   [var-decls [r d] ...]
-;;   [var-defs vdef ...])
 
-
-;; Model -> (listOf Symbol)
-;; get the names of the parameters
-(define (get-variable-names model)
+;; Model -> (listOf VariableScheme)
+;; get the schemes of the variables in the model
+(define (get-variable-schemes model)
   (match model
     [`(model
        [type-decls [,i* . ,t*] ...]
@@ -443,7 +445,16 @@
      r*]))
 
 (module+ test
-  (check-equal? (get-variable-names ex1) '((h i) μ σ)))
+  (check-equal? (get-variable-schemes ex1) '((h i) μ σ)))
+
+
+;; Model -> (listof VariableName)
+;; get the names of variables in the model
+(define (get-variable-names model)
+  (map scheme->name (get-variable-schemes model)))
+
+(module+ test
+  (check-equal? (get-variable-names ex1) '(h μ σ)))
 
 ;; Model -> Symbol
 ;; get the name of the row index variable.  There must be one
@@ -453,7 +464,7 @@
        [type-decls [,i* . ,t*] ...]
        [var-decls  [,r* ,dr*] ...]
        [var-defs   ,vdef* ...])
-     ;; Find the first type declaration with type 'Row
+     ;; Find the first declaration with "type" '(Row)
      (let ([result (assoc '(Row) (map cons t* i*))])
        (if result
            (cdr result)
@@ -462,9 +473,13 @@
 (module+ test
   (check-equal? (get-row-index ex1) 'i))
 
-;; Helper
+
+;; Helper:
+;; (listof X) -> (listof X)
+;; return a list of the unique elements (in no certain order)
 (define (uniquify-list lst)
   (set->list (list->set lst)))
+
 
 ;; Model -> (listof VarDef)
 ;; get the variable definitions
@@ -483,17 +498,30 @@
                   [σ     . ~ . (uniform 0 50)])))
 
 
+;; VariableScheme -> VariableName
+;; get the variable name from a variable scheme
+(define (scheme->name r [fn 'scheme->name])
+  (match r
+    [`,v #:when (symbol? v) v]
+    [`(,v ,i) #:when (symbol? v) v]
+    [`,otherwise (error fn "Bad variable scheme ~a" otherwise)]))
+
+(module+ test
+  (check-equal? (scheme->name 'x) 'x)
+  (check-equal? (scheme->name '(x i) 'parent-fn) 'x)
+  (check-exn exn:fail? (λ () (scheme->name '(foo bar baz)))))
+
+
 ;; Model -> (listof VariablePattern)
-;; the variables defined using "="
+;; get the variables defined using "="
 (define (get-derived-variables model)
   (define vdef* (get-variable-defs model))
   (filter-map (λ (vdef)
                 (match vdef
-                  [`(,v . = . ,e) #:when (symbol? v) v]
-                  [`((,v ,i) . = . ,e) #:when (symbol? v) v]
+                  [`(,r . = . ,e) (scheme->name r)]
                   [`(,r . ~ . ,e) #f]
                   [`,otherwise
-                   (error 'get-derived-variables "Bad variable definition: ~n"
+                   (error 'get-derived-variables "Bad variable definition: ~a"
                           otherwise)]))
               vdef*))
 
@@ -502,15 +530,14 @@
   (check-equal? (get-derived-variables ex2) '(μ)))
 
 
-;; Model -> (listof VariablePattern)
-;; the variables defined using "="
+;; Model -> (listof VariableName)
+;; the variables defined using "~"
 (define (get-original-variables model)
   (define vdef* (get-variable-defs model))
   (filter-map (λ (vdef)
                 (match vdef
                   [`(,r . = . ,e) #f]
-                  [`(,v . ~ . ,e) #:when (symbol? v) v]
-                  [`((,v ,i) . ~ . ,e) #:when (symbol? v) v]
+                  [`(,r . ~ . ,e) (scheme->name r)]
                   [`,otherwise
                    (error 'get-original-variables "Bad variable definition: ~n"
                           otherwise)]))
@@ -521,59 +548,89 @@
   (check-equal? (get-original-variables ex2) '(y β σ x)))
 
 
-;; !!!
+;; Model Data -> (listof VariableName)
 ;; get the names of the observed variables that will be used to
-;; condition the rest of the model.
+;; condition the rest of the model. Ignore any extra data
 (define (get-observed-variables model data)
-  ;; the observed variables are named in "data" though without the
-  ;; row index variable.  We should confirm that the data and model are in sync
-  ;; in that regard.  (any original variable named "(v i)" where "i"
-  ;; is the row index should appear as a vector "v" in the data table (I think)
-  empty)
+  (define data-vars (get-env-vars data))
+  (define model-vars (get-original-variables model))
+  (filter (λ (dv) (member dv model-vars)) data-vars))
+
+(module+ test
+  (check-equal? (get-observed-variables ex1
+                                        (make-env (list 'h)
+                                                  (list (vector 1 2 3))))
+                '(h)))
 
 
-;; !!!
 ;; get the names of the unobserved variables (i.e., the rest)
 (define (get-unobserved-variables model data)
-  ;; (get-variable-names model data)
-  ;; minus
-  ;; (get-observed-variables)
-  empty)
+  (define all-vars (get-variable-names model))
+  (define observed-vars (get-observed-variables model data))
+  (filter (λ (v) (not (member v observed-vars))) all-vars))
+
+(module+ test
+  (check-equal? (get-unobserved-variables ex1
+                                          (make-env (list 'h)
+                                                    (list (vector 1 2 3))))
+                '(μ σ))
+
+  (check-equal? (get-unobserved-variables ex2
+                                          (make-env (list 'y 'x)
+                                                    (list (vector 1 2 3)
+                                                          (vector 4 5 6))))
+                '(μ β σ)))
 
 
-;; TERMINOLOGY: for lack of a better word, I will use the name
-;; "target variables" for the direct targets of inference, i.e., those
-;; unobserved variables that will be directly conditioned with respect to the
-;; data. This omits derived variables e.g., linear models.
-
-;; !!!
+;; Model Data -> VariableName
 ;; get the names of the target variables of inference
 (define (get-target-variables model data)
-  ;; target variables are the unobserved variables that have associated
-  ;; distributions (i.e., are NOT defined using "=")
-  ;; (get-unobserved-variables model data)
-  ;; minus
-  ;; (get-derived-variables model)
-  empty)
+  (define unobserved-vars (get-unobserved-variables model data))
+  (define derived-vars (get-derived-variables model))
+  (filter (λ (v) (not (member v derived-vars))) unobserved-vars))
 
-;; Name is one of:
+(module+ test
+  (check-equal? (get-target-variables ex1
+                                      (make-env (list 'h)
+                                                (list (vector 1 2 3))))
+                '(μ σ))
+
+  (check-equal? (get-target-variables ex2
+                                      (make-env (list 'y 'x)
+                                                (list (vector 1 2 3)
+                                                      (vector 4 5 6))))
+                '(β σ)))
+
+
+;; Ref is one of:
 ;; - Symbol
 ;; - (list Symbol Index)
+;; In some cases these are not "real" variable references:  if an environment
+;; binds a vector, then this is a number-indexed family of references.
 
-;; Env is (listof (list Name Value))
 
-;; !!!
+;; Env is (listof (list Ref Value))
+
 ;; given a list of targets and values, produce an environment.
 ;; Will need to deal with indexed target parameters somehow.
 ;; (listof Symbol) (listof Value) -> Env
 (define (make-env names values)
   (map list names values))
 
-;; Env -> (listof Name)
-;; produce the names of variables bound by the given environment
-(define (get-env-vars env)
-  (map first env))
-
 (module+ test
   (check-equal? (make-env '(a b c) (list #(1 2 3) 4 5))
                 '((a #(1 2 3)) (b 4) (c 5))))
+
+
+;; Env -> (listof Ref)
+;; produce the reference names of variables bound by the given environment
+(define (get-env-vars env)
+  (map first env))
+
+
+;; Env Ref -> Value or (vectorOf Value)
+;; produce the binding associated with a variable
+(define (lookup-env env ref [context-fn 'lookup-env])
+  (cond
+    [(assoc ref env) => second]
+    [else (error context-fn "Bad lookup: ~a" ref)]))
