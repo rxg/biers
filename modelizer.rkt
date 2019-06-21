@@ -402,6 +402,7 @@
 (define (make-log-compat-fn model data)
   (define variables (get-variable-schemes model))
   (define index (get-row-index model))
+  (define tdecls (get-tdecls model))
   (define var-defs (get-variable-defs model))
   (define observed (get-observed-variables model data))
   (define targets (get-target-variables model data))
@@ -427,12 +428,57 @@
   ;;   So evaluation is essentially a "foldr" that produces a pair of an
   ;;   environment-and-cumulative-log-joint-compatibility value (summed up).
 
+  ;;  Since we interpret vdefs last-to-first, we can foldr and connect them
+  ;;  backwards!
+  (define inner-lc-fn
+    ;; accumulator llsf is the log-likelihood so far, starts at 0
+    ;; env is any new derived parameter values, like a linear model
+    ;; - at construction time we can determine what needs to be looked up
+    ;;   in the env (anything that's not in data)
+    (let loop ([vdef* var-defs])
+      (cond
+        [(empty? vdef*) (λ (env llsf) (values env llsf))]
+        [else
+         (let ([this-fn (analyze-vdef (first vdef*) data)]
+               [rest-fn (loop (rest vdef*))])
+           ;; plumb the functions together
+           ;; (note:  if I foldl this, I can call directly w/o values
+           (λ (env llsf)
+             (call-with-values (λ () (rest-fn env llsf))
+                               this-fn)))])))
+  
   (define (lc-fn tgt-values)
     (define env0 (make-env targets tgt-values))
     (define likelihood0 0)
     #f)
   lc-fn)
 
+
+;; !!!
+;; Turn a vdef and data table into an inner ll fn which
+;; threads internal defs and log-likelihood-so-far.
+(define (analyze-vdef vdef data)
+  (match vdef
+    ;; RG : implement these!
+    [`(,r . = . ,e) (λ (env llsf) (values env llsf))]
+    [`(,r . ~ . ,e) (λ (env llsf) (values env llsf))]
+    [`,otherwise
+     (error 'get-derived-variables "Bad variable definition: ~a"
+            otherwise)]))
+
+;; Model -> (listOf VariableScheme)
+;; get the schemes of the variables in the model
+(define (get-tdecls model)
+  (match model
+    [`(model
+       [type-decls ,tdecls ...]
+       [var-decls  [,r* ,dr*] ...]
+       [var-defs   ,vdef* ...])
+     tdecls]))
+
+(module+ test
+  (check-equal? (get-tdecls ex1) '([i Row]))
+  (check-equal? (get-tdecls ex4) '([i Row] [j Sex (Enum 'male 'female)])))
 
 ;; Model -> (listOf VariableScheme)
 ;; get the schemes of the variables in the model
@@ -552,7 +598,7 @@
 ;; get the names of the observed variables that will be used to
 ;; condition the rest of the model. Ignore any extra data
 (define (get-observed-variables model data)
-  (define data-vars (get-env-vars data))
+  (define data-vars (env-refs data))
   (define model-vars (get-original-variables model))
   (filter (λ (dv) (member dv model-vars)) data-vars))
 
@@ -602,35 +648,121 @@
                 '(β σ)))
 
 
+;;
+;;  Environments (internal and data-table)
+;;
+
+
 ;; Ref is one of:
-;; - Symbol
-;; - (list Symbol Index)
-;; In some cases these are not "real" variable references:  if an environment
-;; binds a vector, then this is a number-indexed family of references.
+;; - Symbol               (atomic variable ref)
+;; - Symbol               (family variable name)
+;; - (list Symbol Index)  (family variable ref)
+
+;; Binding is one of:
+;; - Value                (atomic binding)
+;; - (vectorOf Value)     (family binding)
+;; For now we'll be opaque about values, but so far they're numbers and symbols
 
 
-;; Env is (listof (list Ref Value))
+;; Env is (listof (list Ref Binding))
+;; And environment will either map a "real reference" Ref to a Value
+;; or a "synthetic" vector of references to a vector.
+;; e.g.  if σ ↦ #(5 6 7), that's like (σ 0) ↦ 5, (σ 1) ↦ 6, (σ 2) ↦ 7
+(define env0
+  `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
+                 [μ 9] [s #('male 'female 'male)]))
+
 
 ;; given a list of targets and values, produce an environment.
 ;; Will need to deal with indexed target parameters somehow.
 ;; (listof Symbol) (listof Value) -> Env
-(define (make-env names values)
-  (map list names values))
+(define (make-env names bindings)
+  (map list names bindings))
 
 (module+ test
   (check-equal? (make-env '(a b c) (list #(1 2 3) 4 5))
                 '((a #(1 2 3)) (b 4) (c 5))))
 
+;; Env Ref Binding -> Env
+(define (extend-env env ref binding)
+  (cons (list ref binding) env))
 
+
+;; RG - revisit the next one:  what do I *really* want?
+;
 ;; Env -> (listof Ref)
 ;; produce the reference names of variables bound by the given environment
-(define (get-env-vars env)
+(define (env-refs env)
   (map first env))
 
+;; Env Ref -> (vectorOf Value)
+;; produce the binding associated with a variable
+(define (lookup-family env var [context-fn 'lookup-family])
+  (unless (symbol? var)
+    (error context-fn "Bad variable family: ~a" var))
+  (cond
+    [(assoc var env) => (λ (b)
+                          (unless (vector? (second b))
+                            (error context-fn "Bad family binding: ~a" b))
+                          (second b))]
+    [else (error context-fn "Bad lookup: ~a" var)]))
+
+
+;; Indices in Quilt
+(define (index? x)
+  (or (symbol? x)
+      (natural? x)))
+
+
+;; Values in Quilt
+(define (value? x)
+  (or (symbol? x)
+      (number? x)))
+
+
+;; Env Ref -> Value
+;; produce the value associated with a fully-resolved binding
+(define (lookup-value env ref [context 'lookup-value])
+  (define (bad-ref) (error context "Bad lookup: ~a" ref))
+  (match ref
+    [`,v #:when (symbol? v)
+         (let ([b (lookup-env env v context)])
+           (if (value? b)
+               b
+               (error context "Reference ~a not bound to non-value ~a" v b)))]
+    [`(,v ,i) #:when (and (symbol? v) (index? i))
+              (let ([b (with-handlers ([exn:fail? (λ args #f)])
+                         (lookup-env env v context))])
+                ;; reference to a vector family
+                (cond
+                  [(and (vector? b) (natural? i)
+                        (< i (vector-length b)))
+                   (vector-ref b i)]
+                  [else (lookup-env env `(,v ,i))]))]
+    [`,else (bad-ref)]))
+
+(module+ test
+  (check-equal? (lookup-value env0 '(σ 1)) 6)
+  (check-equal? (lookup-value env0 '(σ 0)) 5)
+  (check-equal? (lookup-value env0 'μ) 9)
+  (check-equal? (lookup-value env0 '(α female)) 3.9)
+  
+  (check-exn exn:fail? (λ () (lookup-value env0 '(σ 3))))
+  (check-exn exn:fail? (λ () (lookup-value env0 'σ)))
+  (check-exn exn:fail? (λ () (lookup-value env0 'α)))
+  (check-exn exn:fail? (λ () (lookup-value env0 'x))))
+  
+
+
+#;
+(define env0
+  `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
+                 [μ 9] [s #('male 'female 'male)]))
+    
 
 ;; Env Ref -> Value or (vectorOf Value)
 ;; produce the binding associated with a variable
-(define (lookup-env env ref [context-fn 'lookup-env])
+(define (lookup-env env ref [context 'lookup-env])
   (cond
     [(assoc ref env) => second]
-    [else (error context-fn "Bad lookup: ~a" ref)]))
+    [else (error context "Bad lookup: ~a" ref)]))
