@@ -466,6 +466,7 @@
      (error 'get-derived-variables "Bad variable definition: ~a"
             otherwise)]))
 
+
 ;; Model -> (listOf VariableScheme)
 ;; get the schemes of the variables in the model
 (define (get-tdecls model)
@@ -708,13 +709,19 @@
     [else (error context-fn "Bad lookup: ~a" var)]))
 
 
-;; Indices in Quilt
+(module+ test
+  (check-equal? (lookup-family env0 'σ) #(5 6 7))
+  (check-equal? (lookup-family env0 's) #('male 'female 'male))
+  (check-exn exn:fail? (λ () (lookup-family env0 0 'α))))
+
+
+;; Quilt indices
 (define (index? x)
   (or (symbol? x)
       (natural? x)))
 
 
-;; Values in Quilt
+;; Quilt Values
 (define (value? x)
   (or (symbol? x)
       (number? x)))
@@ -733,11 +740,12 @@
     [`(,v ,i) #:when (and (symbol? v) (index? i))
               (let ([b (with-handlers ([exn:fail? (λ args #f)])
                          (lookup-env env v context))])
-                ;; reference to a vector family
                 (cond
+                  ;; reference to a vector family
                   [(and (vector? b) (natural? i)
                         (< i (vector-length b)))
                    (vector-ref b i)]
+                  ;; direct reference
                   [else (lookup-env env `(,v ,i))]))]
     [`,else (bad-ref)]))
 
@@ -761,7 +769,7 @@
     
 
 ;; Env Ref -> Value or (vectorOf Value)
-;; produce the binding associated with a variable
+;; produce the binding associated with a variable, otherwise raise an error
 (define (lookup-env env ref [context 'lookup-env])
   (cond
     [(assoc ref env) => second]
