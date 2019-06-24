@@ -12,6 +12,12 @@
 ;;
 
 
+;; RG: Introduce notions of "fit environment" and "compatibility environment"
+;;  currently called "data" and "env"
+
+;; RG: Consider renaming llsf to lcsf "log-compatibility so far"
+;; or rlcsf for "relative log-compatibility so far"
+
 ;;
 ;; Quilt: Quadratic Approximation Intermediate Language with Types
 ;; Model Specification:
@@ -51,6 +57,8 @@
 
 ;; vdef ::= [r . ~ . p]              ;; prior distribution
 ;;        | [r . = . e]              ;; definition 
+
+;; RG: do I want a metavariable for "v | (v e)" i.e., a "singlular" reference?
 
 ;; r ::= v           ;; atomic variable
 ;;     | (v i)       ;; indexed family of variables
@@ -396,6 +404,13 @@
 ;; 
 #;(make-log-compat-fn example-model)
 
+
+;; Instr is Env Sum -> Env Sum
+;; this is our internal "bytecode" representation of the log-compatibility
+;; function:  it takes an environment of variable bindings and
+;; log-likelihood-so-far accumulator and returns the same, since each instr
+;; can bind new variables and/or contribute to the log-compatibility value
+
 ;; !!!
 ;; Given a model and some data to fit to it, create a log-compatible function
 ;; suitable for quadratic approximation
@@ -405,8 +420,9 @@
   (define tdecls (get-tdecls model))
   (define var-defs (get-variable-defs model))
   (define observed (get-observed-variables model data))
-  (define targets (get-target-variables model data))
   ;; targets gives us an ordering for values
+  (define targets (get-target-variables model data))
+
 
   ;; create a function from targets to Real
   ;; given a set of targets, compute the log-compatibility
@@ -439,33 +455,123 @@
       (cond
         [(empty? vdef*) (λ (env llsf) (values env llsf))]
         [else
-         (let ([this-fn (analyze-vdef (first vdef*) data)]
+         ;; RG: Redo this using sequence-instrs
+         ;; (sequence-instrs (for/list ([vdef vdef*])
+         ;;                    (analyze-vdef vdef data tdecls)))
+         (let ([this-fn (analyze-vdef (first vdef*) data tdecls)]
                [rest-fn (loop (rest vdef*))])
            ;; plumb the functions together
-           ;; (note:  if I foldl this, I can call directly w/o values
+           ;; (note:  if I foldl this, I can call directly w/o values)
            (λ (env llsf)
              (call-with-values (λ () (rest-fn env llsf))
                                this-fn)))])))
-  
+
+  ;; Targets -> Real
+  ;; given values for the target parameters, produce a log compatibility value
   (define (lc-fn tgt-values)
     (define env0 (make-env targets tgt-values))
     (define likelihood0 0)
-    #f)
+    (call-with-values (λ () (inner-lc-fn env0 likelihood0))
+                      (λ (env llsf) llsf)))
+  
   lc-fn)
 
 
-;; !!!
 ;; Turn a vdef and data table into an inner ll fn which
 ;; threads internal defs and log-likelihood-so-far.
-(define (analyze-vdef vdef data)
+
+;; Vdef Data TDecls -> Instr
+(define (analyze-vdef vdef data tdecls)
   (match vdef
-    ;; RG : implement these!
-    [`(,r . = . ,e) (λ (env llsf) (values env llsf))]
-    [`(,r . ~ . ,e) (λ (env llsf) (values env llsf))]
+    [`((,v ,i) . = . ,e) (analyze-multi-binding v i e data tdecls)]
+    [`(,v . = . ,e)      (analyze-single-binding v e data)]
+    [`((,v ,i) . ~ . ,p) (analyze-multi-prior v i p data tdecls)]
+    [`(,v . ~ . ,p)      (analyze-single-prior v p data)]
     [`,otherwise
      (error 'get-derived-variables "Bad variable definition: ~a"
             otherwise)]))
 
+;; RG - Needs tests!
+
+
+;; (r . = . e)
+;; Evaluate e and bind it to r in the dynamic environment
+;; RG: Introduces notion of ExprInstr : Env -> Value
+(define (analyze-single-binding r e data)
+  (define einstr (analyze-expr e data))
+  (λ (env llsf)
+    (values (extend-env env r (einstr env))
+            llsf)))
+
+;; RG - Needs tests!
+
+
+;; ((v i) . = . e)
+(define (analyze-multi-binding v i e data tdecl)
+  (define indices (get-indices-for-metavariable i (get-row-indices data) tdecl))
+  (define instrs
+    (for/list ([i indices])
+      (analyze-single-binding `(,v ,i)  e data)))
+  (sequence-instrs instrs))
+
+;; RG - Needs tests!
+
+
+;; !!!
+;; (r . ~ . p)  -- not REALLY an r, but rather a concrete ref
+(define (analyze-single-prior r p data)
+  (define pinstr (analyze-prior r p data))
+  (λ (env llsf) (values env
+                        (+ llsf (pinstr env)))))
+;; RG - Needs tests!
+
+
+
+;; !!!
+;; Expr Data -> PriorInstr
+;; RG : Consider inlining this above
+(define (analyze-prior r p data) (λ (env) 0))
+;; RG - Needs tests!
+
+
+
+;; RG : merge this with analyze-multi-binding?
+;; ((v i) . ~ . p)
+(define (analyze-multi-prior v i p data tdecl)
+  (define indices (get-indices-for-metavariable i (get-row-indices data) tdecl))
+  (define instrs
+    (for/list ([i indices])
+      (analyze-single-prior `(,v ,i)  p data)))
+  (sequence-instrs instrs))
+;; RG - Needs tests!
+
+
+;; !!!
+;; Expr Data -> ExprInstr
+(define (analyze-expr e data) (λ (env) 0))
+;; RG - Needs tests!
+
+
+
+;; Linearize a bunch of closure-represented instructions
+(define (sequence-instrs instr*)
+  (let loop ([instr* instr*])
+    (cond
+      [(empty? instr*) (λ (env llsf) (values env llsf))]
+      [else
+       (let ([first-instr (first instr*)]
+             [rest-instr* (loop (rest instr*))])
+         ;; plumb the functions together
+         (λ (env llsf)
+           (call-with-values (λ () (first-instr env llsf))
+                             rest-instr*)))])))
+;; RG - Needs tests!
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Model Operations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Model -> (listOf VariableScheme)
 ;; get the schemes of the variables in the model
@@ -520,6 +626,19 @@
 (module+ test
   (check-equal? (get-row-index ex1) 'i))
 
+
+;; Data -> (listof Natural)
+;; Row indices are determined by the number of rows in the fit data
+(define (get-row-indices data)
+  ;; row indices are just the length of every data row (so pick the first)
+  (range (length (second (first data)))))
+
+
+;; 
+(define (get-indices-for-metavariable index row-indices tdecls)
+  (match (assq index tdecls)
+    [`[,i Row] row-indices]
+    [`(,i ,S (Enum ,s* ...)) `(,s* ...)]))
 
 ;; Helper:
 ;; (listof X) -> (listof X)
@@ -726,6 +845,12 @@
   (or (symbol? x)
       (number? x)))
 
+
+;; Env -> Natural
+;; the number of rows in data tables
+(define (num-data-rows data)
+  (cond [(empty? data) (error 'num-data-rows "Empty data table")]
+        [else (vector-length (first (first data)))]))
 
 ;; Env Ref -> Value
 ;; produce the value associated with a fully-resolved binding
