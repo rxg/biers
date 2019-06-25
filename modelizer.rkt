@@ -530,7 +530,6 @@
 ;; RG - Needs tests!
 
 
-;; !!!
 ;; (q . ~ . p) 
 (define (analyze-single-prior q p data)
   (define pinstr (analyze-prior q p data))
@@ -540,12 +539,10 @@
 
 
 (require math/distributions)
-;; !!!
+
 ;; Expr Data -> PriorInstr
-;; RG : This needs to "distinguish" between references to data and
-;; references to targets, so the current setup is broken
 (define (analyze-prior q p data)
-  (define q-inst (analyze-expr q data)) ;; look up q's value
+  (define q-inst (analyze-ref q data)) ;; look up q's value
   ;; RG - looks like the dist-constructors could be factored out and the args
   ;; map-analyzed, except for multivariate-normal
   (define dist-fn
@@ -629,6 +626,7 @@
        (λ (env) `#(,(i env) ,@(for/list ([i^ i*]) (i^ env)))))]))
 ;; RG - Needs tests!
 
+
 ;; look up the variable's value either in the data table or in the environment
 (define (analyze-ref q data)
   (with-handlers ([exn:fail? ;; Not in data table: look up in env
@@ -636,6 +634,7 @@
     (let ([v (lookup-value data q)])
       ;; found in data table, just return its value
       (λ (env) v))))
+;; RG - Needs tests!
 
 
 
@@ -651,8 +650,18 @@
          (λ (env llsf)
            (call-with-values (λ () (first-instr env llsf))
                              rest-instr*)))])))
-;; RG - Needs tests!
 
+(module+ test
+  (let ()
+    (define i1 (λ (env llsf) (values (extend-env env 'one 1) (+ llsf 1))))
+    (define i2 (λ (env llsf) (values (extend-env env 'two 2) (+ llsf 2))))
+    (define i3 (λ (env llsf) (values (extend-env env 'three 3) (+ llsf 3))))
+    (define i* (sequence-instrs (list i1 i2 i3)))
+    (check-equal?
+     (let-values ([(env llsf) (i* '() 0)])
+       (list (for/list ([v '(three two one)]) (list v (lookup-value env v)))
+             llsf))
+     (list '((three 3) (two 2) (one 1)) 6))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
