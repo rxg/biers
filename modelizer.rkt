@@ -3,6 +3,9 @@
 ;(require test-engine/racket-tests) ;; for check-expect
 (require rackunit)
 
+;; stub for unimplemented code
+(define ... (λ args (error "not yet implemented!")))
+
 ;;
 ;; modelizer.rkt - Some tools for approximately fitting
 ;;                 Bayesian statistical models
@@ -34,6 +37,7 @@
 ;; i ∈ IndexMetavariable
 ;; k ∈ Index
 ;; r ∈ VariablePattern
+;; q ∈ VariableReference
 ;; n ∈ Number
 ;; m ∈ Model
 ;; e ∈ Expression
@@ -59,6 +63,10 @@
 ;;        | [r . = . e]              ;; definition 
 
 ;; RG: do I want a metavariable for "v | (v e)" i.e., a "singlular" reference?
+
+;; q ::= v           ;; atomic variable
+;;     | (v e)       ;; indexed variable
+;;     | #(q q ...)  ;; vector of variables
 
 ;; r ::= v           ;; atomic variable
 ;;     | (v i)       ;; indexed family of variables
@@ -405,6 +413,11 @@
 #;(make-log-compat-fn example-model)
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Construct the fitting function by analyzing the model
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 ;; Instr is Env Sum -> Env Sum
 ;; this is our internal "bytecode" representation of the log-compatibility
 ;; function:  it takes an environment of variable bindings and
@@ -486,23 +499,24 @@
     [`((,v ,i) . = . ,e) (analyze-multi-binding v i e data tdecls)]
     [`(,v . = . ,e)      (analyze-single-binding v e data)]
     [`((,v ,i) . ~ . ,p) (analyze-multi-prior v i p data tdecls)]
+    ;; RG : Need a case for multi-binding via multivariate normal
+    ;; RG : Do I want to support simultaneous binding with a vector too?
+    ;; [`#(v ...) . ~ . ,p) (analyze-vector-prior v i p data tdecls)]
     [`(,v . ~ . ,p)      (analyze-single-prior v p data)]
     [`,otherwise
      (error 'get-derived-variables "Bad variable definition: ~a"
             otherwise)]))
-
 ;; RG - Needs tests!
 
 
-;; (r . = . e)
-;; Evaluate e and bind it to r in the dynamic environment
+;; (q . = . e)
+;; Evaluate e and bind it to q in the dynamic environment
 ;; RG: Introduces notion of ExprInstr : Env -> Value
-(define (analyze-single-binding r e data)
+(define (analyze-single-binding q e data)
   (define einstr (analyze-expr e data))
   (λ (env llsf)
-    (values (extend-env env r (einstr env))
+    (values (extend-env env q (einstr env))
             llsf)))
-
 ;; RG - Needs tests!
 
 
@@ -513,24 +527,62 @@
     (for/list ([i indices])
       (analyze-single-binding `(,v ,i)  e data)))
   (sequence-instrs instrs))
-
 ;; RG - Needs tests!
 
 
 ;; !!!
-;; (r . ~ . p)  -- not REALLY an r, but rather a concrete ref
-(define (analyze-single-prior r p data)
-  (define pinstr (analyze-prior r p data))
+;; (q . ~ . p) 
+(define (analyze-single-prior q p data)
+  (define pinstr (analyze-prior q p data))
   (λ (env llsf) (values env
                         (+ llsf (pinstr env)))))
 ;; RG - Needs tests!
 
 
-
+(require math/distributions)
 ;; !!!
 ;; Expr Data -> PriorInstr
-;; RG : Consider inlining this above
-(define (analyze-prior r p data) (λ (env) 0))
+;; RG : This needs to "distinguish" between references to data and
+;; references to targets, so the current setup is broken
+(define (analyze-prior q p data)
+  (define q-inst (analyze-expr q data)) ;; look up q's value
+  ;; RG - looks like the dist-constructors could be factored out and the args
+  ;; map-analyzed, except for multivariate-normal
+  (define dist-fn
+    (match p
+      [`(normal ,e1 ,e2)
+       (let ([i1 (analyze-expr e1 data)]
+             [i2 (analyze-expr e2 data)])
+         (λ (env) (normal-dist (i1 env) (i2 env))))]
+      [`(log-normal ,e1 ,e2)
+       (let ([i1 (analyze-expr e1 data)]
+             [i2 (analyze-expr e2 data)])
+         (λ (env) (... (i1 env) (i2 env))))]
+      [`(cauchy ,e1 ,e2)
+       (let ([i1 (analyze-expr e1 data)]
+             [i2 (analyze-expr e2 data)])
+         (λ (env) (cauchy-dist (i1 env) (i2 env))))]
+      [`(laplace ,e)
+       (let ([i (analyze-expr e data)])
+         (λ (env) (... (i env))))]
+      ;; RG : pairs of discrete-value and discrete-prob
+      [`(discrete (,e1* ,n*) ...) (λ (env) #f)] 
+      [`(exponential ,e)
+       (let ([i (analyze-expr e)])
+         (λ (env) (exponential-dist (i env))))]
+      [`(binomial ,e1 ,e2)
+       (let ([i1 (analyze-expr e1 data)]
+             [i2 (analyze-expr e2 data)])
+         (λ (env) (binomial-dist (i1 env) (i2 env))))]
+      [`(uniform ,e1 ,e2)
+       (let ([i1 (analyze-expr e1 data)]
+             [i2 (analyze-expr e2 data)])
+         (λ (env) (uniform-dist (i1 env) (i2 env))))]
+      ;; RG : this one's somewhat special...does it go in this function?
+      [`(multivariate-normal #(,e1 ,e1* ...) #(#(,e2* ,e2** ...)))
+       (λ (env) #f)]))
+  ;; calculate log-distribution
+  (λ (env) (pdf dist-fn (q-inst env) true)))
 ;; RG - Needs tests!
 
 
@@ -548,8 +600,42 @@
 
 ;; !!!
 ;; Expr Data -> ExprInstr
-(define (analyze-expr e data) (λ (env) 0))
+(define (analyze-expr e data)
+  (match e
+    [`,n #:when (number? n) (λ (env) n)]
+    [`(quote ,s) #:when (symbol? s) (λ (env) s)]  
+    [`(+ ,e1 ,e2)
+     (let ([i1 (analyze-expr e1 data)]
+           [i2 (analyze-expr e2 data)])
+       (λ (env) (... (i1 env) (i2 env))))]
+    [`(* ,e1 ,e2)
+     (let ([i1 (analyze-expr e1 data)]
+           [i2 (analyze-expr e2 data)])
+       (λ (env) (... (i1 env) (i2 env))))]
+    [`(expt ,e1 ,e2)
+     (let ([i1 (analyze-expr e1 data)]
+           [i2 (analyze-expr e2 data)])
+       (λ (env) (... (i1 env) (i2 env))))]
+    [`(exp ,e)
+     (let ([i (analyze-expr e data)])
+       (λ (env) (... (i env))))]
+    [`,v #:when (symbol? v) (analyze-ref v data)]
+    [`(,v ,e) #:when (symbol? v)
+     (let ([i (analyze-expr e data)])
+       (analyze-ref `(,v ,i) data))]
+    [`#(,e ,e* ...)
+     (let ([i (analyze-expr e data)]
+           [i* (for/list ([e^ e*]) (analyze-expr e^ data))])
+       (λ (env) `#(,(i env) ,@(for/list ([i^ i*]) (i^ env)))))]))
 ;; RG - Needs tests!
+
+;; look up the variable's value either in the data table or in the environment
+(define (analyze-ref q data)
+  (with-handlers ([exn:fail? ;; Not in data table: look up in env
+                   (λ (exn) (λ (env) (lookup-value env q)))])
+    (let ([v (lookup-value data q)])
+      ;; found in data table, just return its value
+      (λ (env) v))))
 
 
 
