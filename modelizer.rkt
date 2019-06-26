@@ -637,7 +637,7 @@
 ;; RG - Needs tests!
 (module+ test
   (check-equal? ((analyze-ref 'a (extend-env empty-env 'a 10)) empty-env) 10)
-  )
+  (check-equal? ((analyze-ref 'a empty-env) (extend-env empty-env 'a 5)) 5))
 
 
 ;; Linearize a bunch of closure-represented instructions
