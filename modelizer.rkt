@@ -635,7 +635,9 @@
       ;; found in data table, just return its value
       (λ (env) v))))
 ;; RG - Needs tests!
-
+(module+ test
+  (check-equal? ((analyze-ref 'a (extend-env empty-env 'a 10)) empty-env) 10)
+  )
 
 
 ;; Linearize a bunch of closure-represented instructions
@@ -887,6 +889,8 @@
   `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
                  [μ 9] [s #('male 'female 'male)]))
 
+
+(define empty-env empty)
 
 ;; given a list of targets and values, produce an environment.
 ;; Will need to deal with indexed target parameters somehow.
