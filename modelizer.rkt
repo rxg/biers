@@ -662,7 +662,7 @@
                      (λ (env idx) (lookup-value env `(,v ,idx))))])
     (let ([v* (lookup-family data v)])
       (λ (env idx)
-        ;; found in data table, just return its value
+        ;; found in data table, just return value at appropriate index
         (vector-ref v* idx)))))
 
 (module+ test
