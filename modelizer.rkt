@@ -595,8 +595,8 @@
 ;; RG - Needs tests!
 
 
-;; !!!
 ;; Expr Data -> ExprInstr
+;; translate the given expression (in the context of fit data) into an instr
 (define (analyze-expr e data)
   (match e
     [`,n #:when (number? n) (λ (env) n)]
@@ -604,27 +604,47 @@
     [`(+ ,e1 ,e2)
      (let ([i1 (analyze-expr e1 data)]
            [i2 (analyze-expr e2 data)])
-       (λ (env) (... (i1 env) (i2 env))))]
+       (λ (env) (+ (i1 env) (i2 env))))]
     [`(* ,e1 ,e2)
      (let ([i1 (analyze-expr e1 data)]
            [i2 (analyze-expr e2 data)])
-       (λ (env) (... (i1 env) (i2 env))))]
+       (λ (env) (* (i1 env) (i2 env))))]
     [`(expt ,e1 ,e2)
      (let ([i1 (analyze-expr e1 data)]
            [i2 (analyze-expr e2 data)])
-       (λ (env) (... (i1 env) (i2 env))))]
+       (λ (env) (expt (i1 env) (i2 env))))]
     [`(exp ,e)
      (let ([i (analyze-expr e data)])
-       (λ (env) (... (i env))))]
+       (λ (env) (exp (i env))))]
     [`,v #:when (symbol? v) (analyze-ref v data)]
     [`(,v ,e) #:when (symbol? v)
      (let ([i (analyze-expr e data)])
-       (analyze-ref `(,v ,i) data))]
+       (λ (env)
+         ;; RG: HACK ALERT! "runtime" compilation...fix this ASAP!
+         ;; If the name is in data, grab the data vector early, then
+         ;;    do the  vector lookup late
+         ;; If not, then it's a late-bound lookup in env
+         ((analyze-ref `(,v ,(i env)) data) env)))]
     [`#(,e ,e* ...)
      (let ([i (analyze-expr e data)]
            [i* (for/list ([e^ e*]) (analyze-expr e^ data))])
        (λ (env) `#(,(i env) ,@(for/list ([i^ i*]) (i^ env)))))]))
 ;; RG - Needs tests!
+
+(module+ test
+  (let ()
+    (define (ee expr) ((analyze-expr expr empty-env) empty-env))
+    (check-equal?  (ee 5) 5)
+    (check-equal? (ee '(+ 5 6)) 11)
+    (check-equal? (ee '(* 5 6)) 30)
+    (check-equal? (ee '(expt 5 6)) 15625)
+    (check-equal? (ee '(exp 5)) (exp 5))
+    (check-equal? (ee '(* (+ 5 6) (+ 5 6))) (* 11 11))
+    (check-equal? (ee '(+ (* 5 6) (expt 5 6))) 15655)
+    (check-equal?
+     ((analyze-expr '(μ (+ 1 1)) (make-env '(μ) '(#(7 8 9)))) empty-env)
+     9)
+    ))
 
 
 ;; look up the variable's value either in the data table or in the environment
