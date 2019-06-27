@@ -579,9 +579,13 @@
       [`(multivariate-normal #(,e1 ,e1* ...) #(#(,e2* ,e2** ...)))
        (λ (env) #f)]))
   ;; calculate log-distribution
-  (λ (env) (pdf dist-fn (q-inst env) true)))
+  (λ (env) (pdf (dist-fn env) (q-inst env) true)))
 ;; RG - Needs tests!
-
+(module+ test
+  (check-equal? ((analyze-prior 'μ '(normal 1 0)
+                                (make-env '(μ) '(7))) empty-env)
+                (pdf (normal-dist 1 0) 7 true))
+  )
 
 
 ;; RG : merge this with analyze-multi-binding?
