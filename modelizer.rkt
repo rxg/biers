@@ -652,6 +652,9 @@
     (check-equal?
      ((analyze-expr '(μ 'female) empty-env) (make-env '((μ female)) '(9)))
      9)
+    (check-exn exn:fail?
+     (λ () ((analyze-expr '(μ female) empty-env)
+            (make-env '((μ female)) '(9)))))
     ))
 
 
