@@ -617,19 +617,17 @@
      (let ([i (analyze-expr e data)])
        (λ (env) (exp (i env))))]
     [`,v #:when (symbol? v) (analyze-ref v data)]
-    [`(,v ,e) #:when (symbol? v)
-     (let ([i (analyze-expr e data)])
-       (λ (env)
-         ;; RG: HACK ALERT! "runtime" compilation...fix this ASAP!
-         ;; If the name is in data, grab the data vector early, then
-         ;;    do the  vector lookup late
-         ;; If not, then it's a late-bound lookup in env
-         ((analyze-ref `(,v ,(i env)) data) env)))]
+    [`(,v ,e)
+     #:when (symbol? v)
+     (let ([i (analyze-expr e data)]       
+           [idx-i (analyze-indexed-ref v data)])
+       (λ (env) ;; evaluate the index, then do the lookup
+         (idx-i env (i env))))]
     [`#(,e ,e* ...)
      (let ([i (analyze-expr e data)]
            [i* (for/list ([e^ e*]) (analyze-expr e^ data))])
        (λ (env) `#(,(i env) ,@(for/list ([i^ i*]) (i^ env)))))]))
-;; RG - Needs tests!
+;; RG - Needs moar tests!
 
 (module+ test
   (let ()
@@ -644,7 +642,30 @@
     (check-equal?
      ((analyze-expr '(μ (+ 1 1)) (make-env '(μ) '(#(7 8 9)))) empty-env)
      9)
+    (check-equal?
+     ((analyze-expr '(μ (+ 1 1)) empty-env) (make-env '((μ 2)) '(9)))
+     9)
     ))
+
+
+;; Variable Data -> (Env Idx -> Value)
+;; prepare to look up an indexed variable value in data table or environment
+;; Note: Results in a number-indexed instr!
+(define (analyze-indexed-ref v data)
+  (with-handlers ([exn:fail? ;; Not in data table: look up in env
+                   (λ (exn)                              
+                     (λ (env idx) (lookup-value env `(,v ,idx))))])
+    (let ([v* (lookup-family data v)])
+      (λ (env idx)
+        ;; found in data table, just return its value
+        (vector-ref v* idx)))))
+
+(module+ test
+  (let ([data (make-env '(μ) '(#(7 8 9)))])
+    (check-equal? ((analyze-indexed-ref 'μ data) empty-env 0) 7)
+    (check-equal? ((analyze-indexed-ref 'σ empty-env)
+                   (extend-env empty-env '(σ female) 2) 'female)
+                  2)))
 
 
 ;; look up the variable's value either in the data table or in the environment
@@ -654,7 +675,7 @@
     (let ([v (lookup-value data q)])
       ;; found in data table, just return its value
       (λ (env) v))))
-;; RG - Needs tests!
+
 (module+ test
   (check-equal? ((analyze-ref 'a (extend-env empty-env 'a 10)) empty-env) 10)
   (check-equal? ((analyze-ref 'a empty-env) (extend-env empty-env 'a 5)) 5))
