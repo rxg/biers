@@ -582,9 +582,12 @@
   (λ (env) (pdf (dist-fn env) (q-inst env) true)))
 ;; RG - Needs tests!
 (module+ test
-  (check-equal? ((analyze-prior 'μ '(normal 1 0)
+  (check-equal? ((analyze-prior 'μ '(normal 0 1)
                                 (make-env '(μ) '(7))) empty-env)
-                (pdf (normal-dist 1 0) 7 true))
+                (pdf (normal-dist 0 1) 7 true))
+  (check-equal? ((analyze-prior 'μ '(normal 0 σ)
+                                (make-env '(μ σ) '(7 12))) empty-env)
+                (pdf (normal-dist 0 12) 7 true))
   )
 
 
