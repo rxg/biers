@@ -533,8 +533,16 @@
   (define pinstr (analyze-prior q p data))
   (λ (env llsf) (values env
                         (+ llsf (pinstr env)))))
-;; RG - Needs tests!
 
+(module+ test
+  (let ([old-llsf 0.3])
+    (define data (make-env '(μ σ) '(7 12)))
+    (check-equal?
+     (let-values ([(env llsf)
+                   ((analyze-single-prior 'μ '(normal 0 1)
+                                          data) empty-env old-llsf)])
+       (list env llsf))
+     (list empty-env (+ old-llsf (pdf (normal-dist 0 1) 7 true))))))
 
 (require math/distributions)
 
