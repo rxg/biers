@@ -62,8 +62,6 @@
 ;; vdef ::= [r . ~ . p]              ;; prior distribution
 ;;        | [r . = . e]              ;; definition 
 
-;; RG: do I want a metavariable for "v | (v e)" i.e., a "singlular" reference?
-
 ;; q ::= v           ;; atomic variable
 ;;     | (v e)       ;; indexed variable
 ;;     | #(q q ...)  ;; vector of variables
@@ -565,7 +563,7 @@
       ;; RG : pairs of discrete-value and discrete-prob
       [`(discrete (,e1* ,n*) ...) (λ (env) #f)] 
       [`(exponential ,e)
-       (let ([i (analyze-expr e)])
+       (let ([i (analyze-expr e data)])
          (λ (env) (exponential-dist (i env))))]
       [`(binomial ,e1 ,e2)
        (let ([i1 (analyze-expr e1 data)]
@@ -580,15 +578,30 @@
        (λ (env) #f)]))
   ;; calculate log-distribution
   (λ (env) (pdf (dist-fn env) (q-inst env) true)))
-;; RG - Needs tests!
+
 (module+ test
-  (check-equal? ((analyze-prior 'μ '(normal 0 1)
-                                (make-env '(μ) '(7))) empty-env)
-                (pdf (normal-dist 0 1) 7 true))
-  (check-equal? ((analyze-prior 'μ '(normal 0 σ)
-                                (make-env '(μ σ) '(7 12))) empty-env)
-                (pdf (normal-dist 0 12) 7 true))
-  )
+  (let ()
+    (define data (make-env '(μ σ) '(7 12)))
+    (check-equal? ((analyze-prior 'μ '(normal 0 1)
+                                  data) empty-env)
+                  (pdf (normal-dist 0 1) 7 true))
+    (check-equal? ((analyze-prior 'μ '(normal (* 0 9) (* σ 1))
+                                  data) empty-env)
+                  (pdf (normal-dist 0 12) 7 true))
+
+    (check-equal? ((analyze-prior 'μ '(cauchy (* 0 9) (* σ 1))
+                                  data) empty-env)
+                  (pdf (cauchy-dist 0 12) 7 true))
+    (check-equal? ((analyze-prior 'μ '(uniform (* 0 9) (* σ 1))
+                                  data) empty-env)
+                  (pdf (uniform-dist 0 12) 7 true))
+    (check-equal? ((analyze-prior 'μ '(binomial (* 0 9) (* σ 1))
+                                  data) empty-env)
+                  (pdf (binomial-dist 0 12) 7 true))
+    (check-equal? ((analyze-prior 'μ '(exponential  (* σ 1))
+                                  data) empty-env)
+                  (pdf (exponential-dist 12) 7 true))    
+    ))
 
 
 ;; RG : merge this with analyze-multi-binding?
@@ -653,15 +666,15 @@
      9)
     (let ([data (make-env '(μ) '(#(7 8 9)))]
           [env (make-env '((σ 9)) '(22))])
-          (check-equal?
-           ((analyze-expr '(σ (μ (+ 1 1))) data) env)
-           22))
+      (check-equal?
+       ((analyze-expr '(σ (μ (+ 1 1))) data) env)
+       22))
     (check-equal?
      ((analyze-expr '(μ 'female) empty-env) (make-env '((μ female)) '(9)))
      9)
     (check-exn exn:fail?
-     (λ () ((analyze-expr '(μ female) empty-env)
-            (make-env '((μ female)) '(9)))))
+               (λ () ((analyze-expr '(μ female) empty-env)
+                      (make-env '((μ female)) '(9)))))
     ))
 
 
