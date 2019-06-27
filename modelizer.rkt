@@ -650,7 +650,6 @@
           (check-equal?
            ((analyze-expr '(σ (μ (+ 1 1))) data) env)
            22))
-    
     ))
 
 
