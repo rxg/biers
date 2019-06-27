@@ -645,6 +645,12 @@
     (check-equal?
      ((analyze-expr '(μ (+ 1 1)) empty-env) (make-env '((μ 2)) '(9)))
      9)
+    (let ([data (make-env '(μ) '(#(7 8 9)))]
+          [env (make-env '((σ 9)) '(22))])
+          (check-equal?
+           ((analyze-expr '(σ (μ (+ 1 1))) data) env)
+           22))
+    
     ))
 
 
