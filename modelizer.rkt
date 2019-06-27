@@ -627,7 +627,6 @@
      (let ([i (analyze-expr e data)]
            [i* (for/list ([e^ e*]) (analyze-expr e^ data))])
        (λ (env) `#(,(i env) ,@(for/list ([i^ i*]) (i^ env)))))]))
-;; RG - Needs moar tests!
 
 (module+ test
   (let ()
