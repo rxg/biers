@@ -649,6 +649,9 @@
           (check-equal?
            ((analyze-expr '(σ (μ (+ 1 1))) data) env)
            22))
+    (check-equal?
+     ((analyze-expr '(μ 'female) empty-env) (make-env '((μ female)) '(9)))
+     9)
     ))
 
 
