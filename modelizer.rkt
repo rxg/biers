@@ -2,6 +2,7 @@
 
 ;(require test-engine/racket-tests) ;; for check-expect
 (require rackunit)
+(require math/distributions)
 
 ;; stub for unimplemented code
 (define ... (λ args (error "not yet implemented!")))
@@ -515,7 +516,7 @@
   (λ (env llsf)
     (values (extend-env env q (einstr env))
             llsf)))
-;; RG - Needs tests!
+
 (module+ test
   (let ([old-llsf 0.3])
     (define data (make-env '(μ σ) '(7 12)))
@@ -525,6 +526,7 @@
                     empty-env old-llsf)])
        (list env llsf))
      (list (extend-env empty-env 'ρ 19) old-llsf))))
+
 
 ;; ((v i) . = . e)
 (define (analyze-multi-binding v i e data tdecl)
@@ -552,7 +554,6 @@
        (list env llsf))
      (list empty-env (+ old-llsf (pdf (normal-dist 0 1) 7 true))))))
 
-(require math/distributions)
 
 ;; Expr Data -> PriorInstr
 (define (analyze-prior q p data)
