@@ -7,6 +7,11 @@
 ;; stub for unimplemented code
 (define ... (λ args (error "not yet implemented!")))
 
+(module+ test
+  (define-syntax list-args
+    (syntax-rules ()
+      [(_ e) (call-with-values (λ () e) list)])))
+
 ;;
 ;; modelizer.rkt - Some tools for approximately fitting
 ;;                 Bayesian statistical models
@@ -109,16 +114,6 @@
 ;;   3) variable reference (e.g. (μ 7), (α 'male), x):  a particular instance.
 
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Let's code!
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;
-;; make-log-compat-fn:
-;;   Given a model and data to fit it tp, produce a function
-;;   that maps parameter values to relative log compatibility values
-
 ;; Chapter 3: Gaussian model of Kalamari forager height
 (define ex1
   `(model
@@ -175,29 +170,17 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Construct the fitting function by analyzing the model
+;; Construct a compatibility function for target parameters by
+;; analyzing the model with respect to some data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-;; Instr is Env Sum -> Env Sum
-;; this is our internal "bytecode" representation of the log-compatibility
-;; function:  it takes an environment of variable bindings and
-;; log-likelihood-so-far accumulator and returns the same, since each instr
-;; can bind new variables and/or contribute to the log-compatibility value
-
-;; !!!
-;; Given a model and some data to fit to it, create a log-compatible function
-;; suitable for quadratic approximation
-(define (make-log-compat-fn model data)
-  (define variables (get-variable-schemes model))
-  (define index (get-row-index model))
-  (define tdecls (get-tdecls model))
-  (define var-defs (get-variable-defs model))
-  (define observed (get-observed-variables model data))
-  ;; targets gives us an ordering for values
-  (define targets (get-target-variables model data))
+;; RG: data types are defined toward the end of the file
 
 
+
+;; Given a model and some data to fit it to, produce a log-compatibility
+;; function for its target parameters, suitable for quadratic approximation
+(define (make-log-compatibility-fit-function model data)
   ;; create a function from targets to Real
   ;; given a set of targets, compute the log-compatibility
   ;; of all of the targets, given the observations
@@ -205,7 +188,7 @@
   ;; (that's how we know how many observation variables there are)
 
   ;; To compute:
-  ;; going from last-to-first, compute log-likelihoods
+  ;; going from last-to-first, compute log-compatibilities
   ;; - target variable priors just turn into log-probabilities given
   ;;   the provided target value. Contribute no new bindings.
   ;; - non-target parameters (i.e., equations) just turn into environment
@@ -218,14 +201,46 @@
   ;;   So evaluation is essentially a "foldr" that produces a pair of an
   ;;   environment-and-cumulative-log-joint-compatibility value (summed up).
 
-  ;;  Since we interpret vdefs last-to-first, we can foldr and connect them
-  ;;  backwards!
-  (define inner-lc-fn
-    ;; accumulator llsf is the log-likelihood so far, starts at 0
-    ;; env is any new derived parameter values, like a linear model
-    ;; - at construction time we can determine what needs to be looked up
-    ;;   in the env (anything that's not in data)
-    (let loop ([vdef* var-defs])
+  ;; instr does the real work of computing the log-compatibility
+  (define instr (analyze-model model data))
+  ;; targets determines the order of the inputs to our function
+  (define targets (get-target-variables model data))
+
+  ;; Targets -> Real
+  ;; compute the log compatibility of the given target parameter values
+  (λ (tgt-values)
+    (define env0 (make-env targets tgt-values))
+    (define lcsf0 0)
+    (let-values ([(env lcsf) (instr env0 lcsf0)])
+      ;; discard the environment once we know the final log-compatibility
+      lcsf)))
+;; RG - Needs tests!
+
+
+;; Instr is Env LCSF -> Env LCSF
+;; our higher-order internal "bytecode" representation for
+;; incremental log-compatibility calculations.  An Instr takes an environment
+;; of derived parameter bindings and a 
+;; log-compatibility-so-far (lcsf) accumulator and updates both according to
+;; the encoded instructions. Each Instr can bind new variables and/or
+;; contribute to the log-compatibility.
+
+;; LCSF is Real
+;; log-compatibility so-far accumulator
+
+;; Model Data -> Instr
+;; produce an Instr object that fits the given model to the given data
+(define (analyze-model model data)
+  (define vdefs (get-variable-defs model))
+  (define tdecls (get-tdecls model))
+  (analyze-vdefs vdefs data tdecls))
+;; RG - Needs tests!
+
+
+;; VDefs Data TDecls -> Instr
+;; turn a list of vdefs (in reverse-binding order) into a sequence Instr
+(define (analyze-vdefs vdefs data tdecls)
+  (let loop ([vdef* vdefs])
       (cond
         [(empty? vdef*) (λ (env llsf) (values env llsf))]
         [else
@@ -239,16 +254,7 @@
            (λ (env llsf)
              (call-with-values (λ () (rest-fn env llsf))
                                this-fn)))])))
-
-  ;; Targets -> Real
-  ;; given values for the target parameters, produce a log compatibility value
-  (define (lc-fn tgt-values)
-    (define env0 (make-env targets tgt-values))
-    (define likelihood0 0)
-    (call-with-values (λ () (inner-lc-fn env0 likelihood0))
-                      (λ (env llsf) llsf)))
-  
-  lc-fn)
+;; RG - Needs tests!
 
 
 ;; Turn a vdef and data table into an inner ll fn which
@@ -269,7 +275,19 @@
      (error 'get-derived-variables "Bad variable definition: ~a"
             otherwise)]))
 ;; RG - Needs tests!
-
+(module+ test
+  (check-equal? (list-args ((analyze-vdef '(σ . = . 9) empty-env '([i Row]))
+                            empty-env 99))
+                (list-args ((analyze-single-binding 'σ 9 empty-env)
+                            empty-env 99)))
+  (let ([data (extend-env empty-env 'h #(1 2 3))])
+    (check-equal? (list-args ((analyze-vdef '((σ i) . = . 9)
+                                            data
+                                            '([i Row]))
+                              empty-env 99))
+                  (list-args ((analyze-multi-binding 'σ 'i 9 data '([i Row]))
+                              empty-env 99))))
+  )
 
 ;; (q . = . e)
 ;; Evaluate e and bind it to q in the dynamic environment
@@ -299,6 +317,14 @@
       (analyze-single-binding `(,v ,i)  e data)))
   (sequence-instrs instrs))
 ;; RG - Needs tests!
+(module+ test
+  (let ([data (extend-env empty-env 'h #(1 2 3))])
+    (check-equal? (list-args
+                   ((analyze-multi-binding 'σ 'i 9 data '([i Row]))
+                    empty-env 99))
+                  '((((σ 2) 9) ((σ 1) 9) ((σ 0) 9))   99)))
+  )
+
 
 
 ;; (q . ~ . p) 
@@ -579,7 +605,7 @@
 ;; Row indices are determined by the number of rows in the fit data
 (define (get-row-indices data)
   ;; row indices are just the length of every data row (so pick the first)
-  (range (length (second (first data)))))
+  (range (vector-length (second (first data)))))
 
 
 ;; 
