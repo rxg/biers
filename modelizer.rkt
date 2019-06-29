@@ -174,8 +174,11 @@
 ;; analyzing the model with respect to some data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; RG: data types are defined toward the end of the file
+;; RG: Env-related data types are defined toward the end of the file
 
+;; Data is Env
+;; first elements are a "data table": equal-length vectors of data. More
+;; entries may be added by the analyzer after the data table.
 
 
 ;; Given a model and some data to fit it to, produce a log-compatibility
@@ -258,7 +261,18 @@
              (call-with-values (λ () (rest-fn env llsf))
                                this-fn)))])))
 ;; RG - Needs tests!
-
+(module+ test
+  (let () 
+    (check-equal?
+     (list-args ((analyze-vdefs
+                  (list
+                   '(σ . ~ . (normal μ 1))
+                   '(μ . = . 0))
+                  (extend-env empty-env 'σ 2)
+                  '([i Row]))
+                 empty-env 99))
+     `(,(extend-env empty-env 'μ 0)
+       ,(+ 99 (pdf (normal-dist 0 1) 2 true))))))
 
 ;; Turn a vdef and data table into an inner ll fn which
 ;; threads internal defs and log-likelihood-so-far.
@@ -277,7 +291,7 @@
     [`,otherwise
      (error 'get-derived-variables "Bad variable definition: ~a"
             otherwise)]))
-;; RG - Needs tests!
+
 (module+ test
   (check-equal? (list-args ((analyze-vdef '(σ . = . 9) empty-env '([i Row]))
                             empty-env 99))
@@ -289,6 +303,20 @@
                                             '([i Row]))
                               empty-env 99))
                   (list-args ((analyze-multi-binding 'σ 'i 9 data '([i Row]))
+                              empty-env 99))))
+
+  (check-equal? (list-args ((analyze-vdef
+                             '(σ . ~ . (normal 0 1)) empty-env '([i Row]))
+                            (extend-env empty-env 'σ 2) 99))
+                `(,(extend-env empty-env 'σ 2)
+                  ,(+ 99 (pdf (normal-dist 0 1) 2 true))))
+  (let ([data (extend-env empty-env 'σ #(1 2 3))])
+    (check-equal? (list-args ((analyze-vdef '((σ i) . ~ . (normal 0 1))
+                                            data
+                                            '([i Row]))
+                              empty-env 99))
+                  (list-args ((analyze-multi-prior
+                               'σ 'i '(normal 0 1) data '([i Row]))
                               empty-env 99))))
   )
 
