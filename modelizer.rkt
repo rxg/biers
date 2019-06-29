@@ -679,23 +679,6 @@
 (module+ test
   (check-equal? (get-variable-names ex1) '(h μ σ)))
 
-;; Model -> Symbol
-;; get the name of the row index variable.  There must be one
-(define (get-row-index model)
-  (match model
-    [`(model
-       [type-decls [,i* . ,t*] ...]
-       [var-decls  [,r* ,dr*] ...]
-       [var-defs   ,vdef* ...])
-     ;; Find the first declaration with "type" '(Row)
-     (let ([result (assoc '(Row) (map cons t* i*))])
-       (if result
-           (cdr result)
-           (error 'get-row-index "No Row index specified.")))]))
-
-(module+ test
-  (check-equal? (get-row-index ex1) 'i))
-
 
 ;; Data -> (listof Natural)
 ;; Row indices are determined by the number of rows in the fit data
@@ -709,12 +692,6 @@
   (match (assq index tdecls)
     [`[,i Row] row-indices]
     [`(,i ,S (Enum ,s* ...)) `(,s* ...)]))
-
-;; Helper:
-;; (listof X) -> (listof X)
-;; return a list of the unique elements (in no certain order)
-(define (uniquify-list lst)
-  (set->list (list->set lst)))
 
 
 ;; Model -> (listof VarDef)
@@ -858,9 +835,10 @@
 ;; And environment will either map a "real reference" Ref to a Value
 ;; or a "synthetic" vector of references to a vector.
 ;; e.g.  if σ ↦ #(5 6 7), that's like (σ 0) ↦ 5, (σ 1) ↦ 6, (σ 2) ↦ 7
-(define env0
+(module+ test
+  (define env0
   `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
-                 [μ 9] [s #('male 'female 'male)]))
+                 [μ 9] [s #('male 'female 'male)])))
 
 (define empty-env empty)
 
@@ -916,12 +894,6 @@
   (or (symbol? x)
       (number? x)))
 
-
-;; Env -> Natural
-;; the number of rows in data tables
-(define (num-data-rows data)
-  (cond [(empty? data) (error 'num-data-rows "Empty data table")]
-        [else (vector-length (first (first data)))]))
 
 ;; Env Ref -> Value
 ;; produce the value associated with a fully-resolved binding
