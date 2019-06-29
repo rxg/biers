@@ -234,6 +234,26 @@
       (pdf (normal-dist 160 4) 2 true)
       (pdf (normal-dist 178 20) 160 true)
       (pdf (uniform-dist 0 50) 4 true)))
+
+  (check-equal?
+   ((make-log-compatibility-fit-function
+     `(model
+       [type-decls [i Row]]
+       [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
+                   [(x i) Number]]
+       [var-defs   [(y i) . ~ . (normal (μ i) σ)]
+                   [(μ i) . = . (* β (x i))]
+                   [β     . ~ . (normal 0 10)]
+                   [σ     . ~ . (exponential 1)]
+                   [(x i) . ~ . irrelevant]])
+     (make-env '(y x) '(#(1 2 3) #(4 5 6))))
+    '(9 12))
+   (+ (pdf (normal-dist (* 9 4) 12) 1 true)
+      (pdf (normal-dist (* 9 5) 12) 2 true)
+      (pdf (normal-dist (* 9 6) 12) 3 true)
+      (pdf (normal-dist 0 10) 9 true)
+      (pdf (exponential-dist 1) 12 true))
+   )
   )
 
 ;; Instr is Env LCSF -> Env LCSF
@@ -485,11 +505,23 @@
 (define (analyze-multi-prior v i p data tdecl)
   (define indices (get-indices-for-metavariable i (get-row-indices data) tdecl))
   (define instrs
-    (for/list ([i indices])
-      (analyze-single-prior `(,v ,i)  p data)))
+    (for/list ([idx indices])
+      (analyze-single-prior `(,v ,idx)  p (extend-env data i idx))))
   (sequence-instrs instrs))
 ;; RG - Needs tests!
-
+(module+ test
+  (check-equal?
+   (list-args ((analyze-multi-prior 'μ 'i '(normal i 1)
+                                    (make-env '(x) '(#(0 1 2)))
+                                    '([i Row]))
+               (make-env '(μ) '(#(9 8 7))) 12))
+   (list (make-env '(μ) '(#(9 8 7)))
+         (+ 12
+            (pdf (normal-dist 0 1) 9 true)
+            (pdf (normal-dist 1 1) 8 true)
+            (pdf (normal-dist 2 1) 7 true))))
+                           
+  )
 
 ;; Expr Data -> ExprInstr
 ;; translate the given expression (in the context of fit data) into an instr
