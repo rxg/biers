@@ -240,13 +240,16 @@
 ;; VDefs Data TDecls -> Instr
 ;; turn a list of vdefs (in reverse-binding order) into a sequence Instr
 (define (analyze-vdefs vdefs data tdecls)
-  (let loop ([vdef* vdefs])
+  (let ([instr* (for/list ([vdef vdefs])
+                  (analyze-vdef vdef data tdecls))])
+    ;; vdefs are interpreted last-to-first
+    (sequence-instrs (reverse instr*)))
+  ;; RG: manual definition, should be obsolete
+  #;(let loop ([vdef* vdefs])
       (cond
         [(empty? vdef*) (λ (env llsf) (values env llsf))]
         [else
-         ;; RG: Redo this using sequence-instrs
-         ;; (sequence-instrs (for/list ([vdef vdef*])
-         ;;                    (analyze-vdef vdef data tdecls)))
+         
          (let ([this-fn (analyze-vdef (first vdef*) data tdecls)]
                [rest-fn (loop (rest vdef*))])
            ;; plumb the functions together
@@ -313,8 +316,8 @@
 (define (analyze-multi-binding v i e data tdecl)
   (define indices (get-indices-for-metavariable i (get-row-indices data) tdecl))
   (define instrs
-    (for/list ([i indices])
-      (analyze-single-binding `(,v ,i)  e data)))
+    (for/list ([idx indices])
+      (analyze-single-binding `(,v ,idx)  e (extend-env data i idx))))
   (sequence-instrs instrs))
 ;; RG - Needs tests!
 (module+ test
@@ -322,7 +325,11 @@
     (check-equal? (list-args
                    ((analyze-multi-binding 'σ 'i 9 data '([i Row]))
                     empty-env 99))
-                  '((((σ 2) 9) ((σ 1) 9) ((σ 0) 9))   99)))
+                  '((((σ 2) 9) ((σ 1) 9) ((σ 0) 9))   99))
+    (check-equal? (list-args
+                   ((analyze-multi-binding 'σ 'i 'i data '([i Row]))
+                    empty-env 99))
+                  '((((σ 2) 2) ((σ 1) 1) ((σ 0) 0))   99)))
   )
 
 
