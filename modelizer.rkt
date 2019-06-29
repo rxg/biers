@@ -406,6 +406,26 @@
        (list env lcsf))
      (list empty-env (+ old-lcsf (pdf (normal-dist 0 1) 7 true))))))
 
+;;
+;; A probably-broken attempt to make a log-normal distribution by hand
+;;
+(define (log-normal-pdf npdf)
+  (λ (in . args)
+    (apply npdf (cons (log in) args))))
+
+(define (log-normal-sample nsmp)
+  (λ args
+    (cond
+      [(empty? args) (exp (apply nsmp args))]
+      [else (map exp (apply nsmp args))])))
+
+(define (log-normal-dist mean stddev)
+  (define nd (normal-dist mean stddev))
+  (distribution (log-normal-pdf (distribution-pdf nd))
+                (log-normal-sample (distribution-sample nd))))
+
+  
+
 
 ;; Expr Data -> PriorInstr
 (define (analyze-prior q p data)
@@ -421,7 +441,8 @@
       [`(log-normal ,e1 ,e2)
        (let ([i1 (analyze-expr e1 data)]
              [i2 (analyze-expr e2 data)])
-         (λ (env) (... (i1 env) (i2 env))))]
+         ;; RG: Implementation of log-normal is sketchy!
+         (λ (env) (log-normal-dist (i1 env) (i2 env))))]
       [`(cauchy ,e1 ,e2)
        (let ([i1 (analyze-expr e1 data)]
              [i2 (analyze-expr e2 data)])
@@ -430,7 +451,8 @@
        (let ([i (analyze-expr e data)])
          (λ (env) (... (i env))))]
       ;; RG : pairs of discrete-value and discrete-prob
-      [`(discrete (,e1* ,n*) ...) (λ (env) #f)] 
+      [`(discrete (,e1* ,n*) ...)
+       (λ (env) (... #f))] 
       [`(exponential ,e)
        (let ([i (analyze-expr e data)])
          (λ (env) (exponential-dist (i env))))]
