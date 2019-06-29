@@ -898,7 +898,7 @@
          (let ([b (lookup-env env v context)])
            (if (value? b)
                b
-               (error context "Reference ~a not bound to non-value ~a" v b)))]
+               (error context "Reference ~a bound to non-value ~a" v b)))]
     [`(,v ,i) #:when (and (symbol? v) (index? i))
               (let ([b (with-handlers ([exn:fail? (λ args #f)])
                          (lookup-env env v context))])
