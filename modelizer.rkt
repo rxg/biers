@@ -217,8 +217,24 @@
     (let-values ([(env lcsf) (instr env0 lcsf0)])
       ;; discard the environment once we know the final log-compatibility
       lcsf)))
-;; RG - Needs tests!
 
+(module+ test
+  (check-equal?
+   ((make-log-compatibility-fit-function
+     `(model
+       [type-decls [i Row]]
+       [var-decls  [(h i) Number] [μ Number] [σ Number]]
+       [var-defs   [(h i) . ~ . (normal μ σ)]
+                   [μ     . ~ . (normal 178 20)]
+                   [σ     . ~ . (uniform 0 50)]])
+     (make-env '(h) '(#(0 1 2))))
+    '(160 4))
+   (+ (pdf (normal-dist 160 4) 0 true)
+      (pdf (normal-dist 160 4) 1 true)
+      (pdf (normal-dist 160 4) 2 true)
+      (pdf (normal-dist 178 20) 160 true)
+      (pdf (uniform-dist 0 50) 4 true)))
+  )
 
 ;; Instr is Env LCSF -> Env LCSF
 ;; our higher-order internal "bytecode" representation for
@@ -237,8 +253,27 @@
   (define vdefs (get-variable-defs model))
   (define tdecls (get-tdecls model))
   (analyze-vdefs vdefs data tdecls))
-;; RG - Needs tests!
 
+(module+ test
+  (check-equal?
+   (list-args
+    ((analyze-model
+      `(model
+        [type-decls [i Row]]
+        [var-decls  [(h i) Number] [μ Number] [σ Number]]
+        [var-defs   [(h i) . ~ . (normal μ σ)]
+                    [μ     . ~ . (normal 178 20)]
+                    [σ     . ~ . (uniform 0 50)]])
+      (make-env '(h) '(#(0 1 2))))
+     (make-env '(μ σ) '(160 4))
+     0))
+   (list (make-env '(μ σ) '(160 4))
+         (+ (pdf (normal-dist 160 4) 0 true)
+            (pdf (normal-dist 160 4) 1 true)
+            (pdf (normal-dist 160 4) 2 true)
+            (pdf (normal-dist 178 20) 160 true)
+            (pdf (uniform-dist 0 50) 4 true))))
+  )
 
 ;; VDefs Data TDecls -> Instr
 ;; turn a list of vdefs (in reverse-binding order) into a sequence Instr
@@ -260,7 +295,7 @@
            (λ (env llsf)
              (call-with-values (λ () (rest-fn env llsf))
                                this-fn)))])))
-;; RG - Needs tests!
+
 (module+ test
   (let () 
     (check-equal?
