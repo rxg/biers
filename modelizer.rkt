@@ -7,6 +7,7 @@
 ;; stub for unimplemented code
 (define ... (λ args (error "not yet implemented!")))
 
+;; Used for testing multiple-value functions
 (module+ test
   (define-syntax list-args
     (syntax-rules ()
@@ -23,9 +24,6 @@
 
 ;; RG: Introduce notions of "fit environment" and "compatibility environment"
 ;;  currently called "data" and "env"
-
-;; RG: Consider renaming llsf to lcsf "log-compatibility so far"
-;; or rlcsf for "relative log-compatibility so far"
 
 ;;
 ;; Quilt: Quadratic Approximation Intermediate Language with Types
@@ -165,14 +163,23 @@
                 [σ     . ~ . (uniform 0 50)]
                 [(sex i) . ~ . (discrete ('female 0.5) ('male 0.5))]]))
 
-;; 
-#;(make-log-compat-fn example-model)
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Construct a compatibility function for target parameters by
 ;; analyzing the model with respect to some data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; To compute:
+;; going from last-to-first, compute log-compatibilities
+;; - target variable priors just turn into log-probabilities given
+;;   the provided target value. Contribute no new bindings.
+;; - non-target parameters (i.e., equations) just turn into environment
+;;   bindings for use in "earlier" priors.  May form a "vector" or otherwise
+;;   indexed set of data. Contribute nothing to log probability
+;; - observed variable priors also turn into log-probabilities, though
+;;   splayed across the Row observations (so there's an implicit map)
+;;   contribute no new bindings.
+ 
+
 
 ;; RG: Env-related data types are defined toward the end of the file
 
@@ -180,30 +187,10 @@
 ;; first elements are a "data table": equal-length vectors of data. More
 ;; entries may be added by the analyzer after the data table.
 
-
+;; Model Data -> (Targets -> Real)
 ;; Given a model and some data to fit it to, produce a log-compatibility
 ;; function for its target parameters, suitable for quadratic approximation
 (define (make-log-compatibility-fit-function model data)
-  ;; create a function from targets to Real
-  ;; given a set of targets, compute the log-compatibility
-  ;; of all of the targets, given the observations
-  ;; note that the observations are indexed on Row
-  ;; (that's how we know how many observation variables there are)
-
-  ;; To compute:
-  ;; going from last-to-first, compute log-compatibilities
-  ;; - target variable priors just turn into log-probabilities given
-  ;;   the provided target value. Contribute no new bindings.
-  ;; - non-target parameters (i.e., equations) just turn into environment
-  ;;   bindings for use in "earlier" priors.  May form a "vector" or otherwise
-  ;;   indexed set of data. Contribute nothing to log probability
-  ;; - observed variable priors also turn into log-probabilities, though
-  ;;   splayed across the Row observations (so there's an implicit map)
-  ;;   contribute no new bindings.
-  ;;
-  ;;   So evaluation is essentially a "foldr" that produces a pair of an
-  ;;   environment-and-cumulative-log-joint-compatibility value (summed up).
-
   ;; instr does the real work of computing the log-compatibility
   (define instr (analyze-model model data))
   ;; targets determines the order of the inputs to our function
@@ -301,20 +288,7 @@
   (let ([instr* (for/list ([vdef vdefs])
                   (analyze-vdef vdef data tdecls))])
     ;; vdefs are interpreted last-to-first
-    (sequence-instrs (reverse instr*)))
-  ;; RG: manual definition, should be obsolete
-  #;(let loop ([vdef* vdefs])
-      (cond
-        [(empty? vdef*) (λ (env llsf) (values env llsf))]
-        [else
-         
-         (let ([this-fn (analyze-vdef (first vdef*) data tdecls)]
-               [rest-fn (loop (rest vdef*))])
-           ;; plumb the functions together
-           ;; (note:  if I foldl this, I can call directly w/o values)
-           (λ (env llsf)
-             (call-with-values (λ () (rest-fn env llsf))
-                               this-fn)))])))
+    (sequence-instrs (reverse instr*))))
 
 (module+ test
   (let () 
@@ -337,7 +311,7 @@
   (match vdef
     [`((,v ,i) . = . ,e)    (analyze-multi-binding v i e data tdecls)]
     [`(,v . = . ,e)         (analyze-single-binding v e data)]
-    [`(,r . ~ . irrelevant) (λ (env llsf) (values env llsf))] ;; no-op
+    [`(,r . ~ . irrelevant) (λ (env lcsf) (values env lcsf))] ;; no-op
     [`((,v ,i) . ~ . ,p)    (analyze-multi-prior v i p data tdecls)]
     ;; RG : Need a case for multi-binding via multivariate normal
     ;; RG : Do I want to support simultaneous binding with a vector too?
@@ -380,19 +354,19 @@
 ;; RG: Introduces notion of ExprInstr : Env -> Value
 (define (analyze-single-binding q e data)
   (define einstr (analyze-expr e data))
-  (λ (env llsf)
+  (λ (env lcsf)
     (values (extend-env env q (einstr env))
-            llsf)))
+            lcsf)))
 
 (module+ test
-  (let ([old-llsf 0.3])
+  (let ([old-lcsf 0.3])
     (define data (make-env '(μ σ) '(7 12)))
     (check-equal?
-     (let-values ([(env llsf)
+     (let-values ([(env lcsf)
                    ((analyze-single-binding 'ρ '(+ μ σ) data)
-                    empty-env old-llsf)])
-       (list env llsf))
-     (list (extend-env empty-env 'ρ 19) old-llsf))))
+                    empty-env old-lcsf)])
+       (list env lcsf))
+     (list (extend-env empty-env 'ρ 19) old-lcsf))))
 
 
 ;; ((v i) . = . e)
@@ -402,7 +376,7 @@
     (for/list ([idx indices])
       (analyze-single-binding `(,v ,idx)  e (extend-env data i idx))))
   (sequence-instrs instrs))
-;; RG - Needs tests!
+
 (module+ test
   (let ([data (extend-env empty-env 'h #(1 2 3))])
     (check-equal? (list-args
@@ -412,26 +386,25 @@
     (check-equal? (list-args
                    ((analyze-multi-binding 'σ 'i 'i data '([i Row]))
                     empty-env 99))
-                  '((((σ 2) 2) ((σ 1) 1) ((σ 0) 0))   99)))
-  )
-
+                  '((((σ 2) 2) ((σ 1) 1) ((σ 0) 0))   99))
+    ))
 
 
 ;; (q . ~ . p) 
 (define (analyze-single-prior q p data)
   (define pinstr (analyze-prior q p data))
-  (λ (env llsf) (values env
-                        (+ llsf (pinstr env)))))
+  (λ (env lcsf) (values env
+                        (+ lcsf (pinstr env)))))
 
 (module+ test
-  (let ([old-llsf 0.3])
+  (let ([old-lcsf 0.3])
     (define data (make-env '(μ σ) '(7 12)))
     (check-equal?
-     (let-values ([(env llsf)
+     (let-values ([(env lcsf)
                    ((analyze-single-prior 'μ '(normal 0 1)
-                                          data) empty-env old-llsf)])
-       (list env llsf))
-     (list empty-env (+ old-llsf (pdf (normal-dist 0 1) 7 true))))))
+                                          data) empty-env old-lcsf)])
+       (list env lcsf))
+     (list empty-env (+ old-lcsf (pdf (normal-dist 0 1) 7 true))))))
 
 
 ;; Expr Data -> PriorInstr
@@ -508,7 +481,7 @@
     (for/list ([idx indices])
       (analyze-single-prior `(,v ,idx)  p (extend-env data i idx))))
   (sequence-instrs instrs))
-;; RG - Needs tests!
+
 (module+ test
   (check-equal?
    (list-args ((analyze-multi-prior 'μ 'i '(normal i 1)
@@ -519,8 +492,7 @@
          (+ 12
             (pdf (normal-dist 0 1) 9 true)
             (pdf (normal-dist 1 1) 8 true)
-            (pdf (normal-dist 2 1) 7 true))))
-                           
+            (pdf (normal-dist 2 1) 7 true))))                          
   )
 
 ;; Expr Data -> ExprInstr
@@ -623,25 +595,25 @@
 (define (sequence-instrs instr*)
   (let loop ([instr* instr*])
     (cond
-      [(empty? instr*) (λ (env llsf) (values env llsf))]
+      [(empty? instr*) (λ (env lcsf) (values env lcsf))]
       [else
        (let ([first-instr (first instr*)]
              [rest-instr* (loop (rest instr*))])
          ;; plumb the functions together
-         (λ (env llsf)
-           (call-with-values (λ () (first-instr env llsf))
+         (λ (env lcsf)
+           (call-with-values (λ () (first-instr env lcsf))
                              rest-instr*)))])))
 
 (module+ test
   (let ()
-    (define i1 (λ (env llsf) (values (extend-env env 'one 1) (+ llsf 1))))
-    (define i2 (λ (env llsf) (values (extend-env env 'two 2) (+ llsf 2))))
-    (define i3 (λ (env llsf) (values (extend-env env 'three 3) (+ llsf 3))))
+    (define i1 (λ (env lcsf) (values (extend-env env 'one 1) (+ lcsf 1))))
+    (define i2 (λ (env lcsf) (values (extend-env env 'two 2) (+ lcsf 2))))
+    (define i3 (λ (env lcsf) (values (extend-env env 'three 3) (+ lcsf 3))))
     (define i* (sequence-instrs (list i1 i2 i3)))
     (check-equal?
-     (let-values ([(env llsf) (i* '() 0)])
+     (let-values ([(env lcsf) (i* '() 0)])
        (list (for/list ([v '(three two one)]) (list v (lookup-value env v)))
-             llsf))
+             lcsf))
      (list '((three 3) (two 2) (one 1)) 6))))
 
 
