@@ -1,8 +1,10 @@
 #lang racket
 
-;(require test-engine/racket-tests) ;; for check-expect
 (require rackunit)
 (require math/distributions)
+(require "log-normal.rkt")
+
+(provide make-log-compatibility-fit-function)
 
 ;; stub for unimplemented code
 (define ... (λ args (error "not yet implemented!")))
@@ -111,57 +113,60 @@
 ;;   2) variable scheme (e.g. (μ i), (α s), x): with relevant index metavariable
 ;;   3) variable reference (e.g. (μ 7), (α 'male), x):  a particular instance.
 
+(module+ test
+  ;; Chapter 3: Gaussian model of Kalamari forager height
+  (define ex1
+    `(model
+      [type-decls [i Row]]
+      [var-decls  [(h i) Number] [μ Number] [σ Number]]
+      [var-defs   [(h i) . ~ . (normal μ σ)]
+                  [μ     . ~ . (normal 178 20)]
+                  [σ     . ~ . (uniform 0 50)]]))
 
-;; Chapter 3: Gaussian model of Kalamari forager height
-(define ex1
-  `(model
-    [type-decls [i Row]]
-    [var-decls  [(h i) Number] [μ Number] [σ Number]]
-    [var-defs   [(h i) . ~ . (normal μ σ)]
-                [μ     . ~ . (normal 178 20)]
-                [σ     . ~ . (uniform 0 50)]]))
+  ;; Chapter 3: Schematic of a linear regression (force 0 intercept)
+  (define ex2
+    `(model
+      [type-decls [i Row]]
+      [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
+                  [(x i) Number]]
+      [var-defs   [(y i) . ~ . (normal (μ i) σ)]
+                  [(μ i) . = . (* β (x i))]
+                  [β     . ~ . (normal 0 10)]
+                  [σ     . ~ . (exponential 1)]
+                  [(x i) . ~ . (normal 0 1)]]))
 
-;; Chapter 3: Schematic of a linear regression (force 0 intercept)
-(define ex2
-  `(model
-    [type-decls [i Row]]
-    [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]
-                [(x i) Number]]
-    [var-defs   [(y i) . ~ . (normal (μ i) σ)]
-                [(μ i) . = . (* β (x i))]
-                [β     . ~ . (normal 0 10)]
-                [σ     . ~ . (exponential 1)]
-                [(x i) . ~ . (normal 0 1)]]))
+  ;; Chapter 5:
+  ;; Indicator variable for male (0 = not male, 1 = male)
+  ;; This is essentially Student's t-test encoded as a linear model,
+  ;; without the decision (just the estimation)
+  (define ex3
+    `(model
+      [type-decls [i Row]]
+      [var-decls  [(h i) Number] [(μ i) Number] [α Number] [βm Number]
+                  [σ Number] [(m i) Number]]
+      [var-defs   [(h i) . ~ . (normal μ σ)]
+                  [(μ i) . = . (+ α (* βm (m i)))]
+                  [α     . ~ . (normal 178 20)]
+                  [βm    . ~ . (normal 0 1)]
+                  [σ     . ~ . (uniform 0 50)]
+                  [(m i) . ~ . (discrete (0 0.5) (1 0.5))]]))
 
-;; Chapter 5:
-;; Indicator variable for male (0 = not male, 1 = male)
-;; This is essentially Student's t-test encoded as a linear model,
-;; without the decision (just the estimation)
-(define ex3
-  `(model
-    [type-decls [i Row]]
-    [var-decls  [(h i) Number] [(μ i) Number] [α Number] [βm Number]
-                [σ Number] [(m i) Number]]
-    [var-defs   [(h i) . ~ . (normal μ σ)]
-                [(μ i) . = . (+ α (* βm (m i)))]
-                [α     . ~ . (normal 178 20)]
-                [βm    . ~ . (normal 0 1)]
-                [σ     . ~ . (uniform 0 50)]
-                [(m i) . ~ . (discrete (0 0.5) (1 0.5))]]))
 
-;; Chapter 5: Index variable, which is less hacky than an indicator variable IMO
-;; This is not exactly the same as above: models (α 'male) and (α 'female)
-;; instead of α and (+ α βm) (yuk!)
-(define ex4
-  `(model
-    [type-decls [i Row] [j Sex (Enum 'male 'female)]]
-    [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex]
-                [σ Number] [(m i) Number]]
-    [var-defs   [(h i) . ~ . (normal μ σ)]
-                [(μ i) . = . (α (sex i))]
-                [(α j) . ~ . (normal 178 20)]
-                [σ     . ~ . (uniform 0 50)]
-                [(sex i) . ~ . (discrete ('female 0.5) ('male 0.5))]]))
+
+  ;; Chapter 5: Index variable, which is less hacky than an indicator variable
+  ;; IMO. This is not exactly the same as above: models (α 'male) and
+  ;; (α 'female) instead of α and (+ α βm) (yuk!)
+  (define ex4
+    `(model
+      [type-decls [i Row] [j Sex (Enum 'male 'female)]]
+      [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex]
+                  [σ Number] [(m i) Number]]
+      [var-defs   [(h i) . ~ . (normal μ σ)]
+                  [(μ i) . = . (α (sex i))]
+                  [(α j) . ~ . (normal 178 20)]
+                  [σ     . ~ . (uniform 0 50)]
+                  [(sex i) . ~ . (discrete ('female 0.5) ('male 0.5))]]))
+  ) ; module test
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Construct a compatibility function for target parameters by
@@ -406,25 +411,6 @@
        (list env lcsf))
      (list empty-env (+ old-lcsf (pdf (normal-dist 0 1) 7 true))))))
 
-;;
-;; A probably-broken attempt to make a log-normal distribution by hand
-;;
-(define (log-normal-pdf npdf)
-  (λ (in . args)
-    (apply npdf (cons (log in) args))))
-
-(define (log-normal-sample nsmp)
-  (λ args
-    (cond
-      [(empty? args) (exp (apply nsmp args))]
-      [else (map exp (apply nsmp args))])))
-
-(define (log-normal-dist mean stddev)
-  (define nd (normal-dist mean stddev))
-  (distribution (log-normal-pdf (distribution-pdf nd))
-                (log-normal-sample (distribution-sample nd))))
-
-  
 
 
 ;; Expr Data -> PriorInstr
@@ -816,8 +802,25 @@
 
 
 ;;
+;; Other Data Types
+;;
+
+;; Index is one of Symbol or Natural
+(define (index? x)
+  (or (symbol? x)
+      (natural? x)))
+
+
+;; Value is one of Symbol or Number
+(define (value? x)
+  (or (symbol? x)
+      (number? x)))
+
+
+;;
 ;;  Environments (internal and data-table)
 ;;
+
 
 
 ;; Ref is one of:
@@ -831,14 +834,15 @@
 ;; For now we'll be opaque about values, but so far they're numbers and symbols
 
 
+
 ;; Env is (listof (list Ref Binding))
 ;; And environment will either map a "real reference" Ref to a Value
 ;; or a "synthetic" vector of references to a vector.
 ;; e.g.  if σ ↦ #(5 6 7), that's like (σ 0) ↦ 5, (σ 1) ↦ 6, (σ 2) ↦ 7
 (module+ test
   (define env0
-  `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
-                 [μ 9] [s #('male 'female 'male)])))
+    `([σ #(5 6 7)] [(α male) 2.0] [(α female) 3.9]
+                   [μ 9] [s #('male 'female 'male)])))
 
 (define empty-env empty)
 
@@ -883,16 +887,6 @@
   (check-exn exn:fail? (λ () (lookup-family env0 0 'α))))
 
 
-;; Quilt indices
-(define (index? x)
-  (or (symbol? x)
-      (natural? x)))
-
-
-;; Quilt Values
-(define (value? x)
-  (or (symbol? x)
-      (number? x)))
 
 
 ;; Env Ref -> Value
