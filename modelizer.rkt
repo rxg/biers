@@ -4,7 +4,7 @@
 (require math/distributions)
 (require "log-normal.rkt")
 
-(provide make-log-compatibility-fit-function)
+(provide make-log-compatibility-function empty-env make-env extend-env)
 
 ;; stub for unimplemented code
 (define ... (λ args (error "not yet implemented!")))
@@ -195,7 +195,7 @@
 ;; Model Data -> (Targets -> Real)
 ;; Given a model and some data to fit it to, produce a log-compatibility
 ;; function for its target parameters, suitable for quadratic approximation
-(define (make-log-compatibility-fit-function model data)
+(define (make-log-compatibility-function model data)
   ;; instr does the real work of computing the log-compatibility
   (define instr (analyze-model model data))
   ;; targets determines the order of the inputs to our function
@@ -212,7 +212,7 @@
 
 (module+ test
   (check-equal?
-   ((make-log-compatibility-fit-function
+   ((make-log-compatibility-function
      `(model
        [type-decls [i Row]]
        [var-decls  [(h i) Number] [μ Number] [σ Number]]
@@ -228,7 +228,7 @@
       (pdf (uniform-dist 0 50) 4 true)))
 
   (check-equal?
-   ((make-log-compatibility-fit-function
+   ((make-log-compatibility-function
      `(model
        [type-decls [i Row]]
        [var-decls  [(y i) Number] [(μ i) Number] [β Number] [σ Number]

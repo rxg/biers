@@ -274,8 +274,9 @@
 
 #;
 (begin
-  (require "howell.rkt")
-  (require "laplace-approx.rkt")
+  (require "howell.rkt")           ; Howell Data
+  (require "laplace-approx.rkt")   ; Laplace Approximation Engine
+  (require "modelizer.rkt")        ; Interpret model specifications 
   (plot-height 300) (plot-width 300)
   ;;
   ;; Fit the first 20 heights
@@ -287,7 +288,20 @@
   #;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
   ;; non-normalized log posterior (compositionally constructed)
   (define lnpf20 (make-joint first-20-heights 'log))
+
+  (define mlnpf20 
+    (make-log-compatibility-function
+     `(model
+       [type-decls [i Row]]
+       [var-decls  [(h i) Number] [μ Number] [σ Number]]
+       [var-defs   [(h i) . ~ . (normal μ σ)]
+                   [μ     . ~ . (normal 178 20)]
+                   [σ     . ~ . (uniform 0 50)]])
+     (extend-env empty-env 'h first-20-heights)
+     ))
+    
   (define laf20 (laplace-approx lnpf20 '((140 160) (4 20))))
+  (define laf20 (laplace-approx mlnpf20 '((140 160) (4 20))))
   (define qpdff20 (lapprox-pdf laf20))
   (define qp3df20
     (plot3d (surface3d qpdff20 140 160 4 20)
@@ -346,3 +360,76 @@
 
   #;(list unp3d qp3d) ;; to see them juxtaposed
   (void))
+
+#;
+(begin
+  (require "howell.rkt")           ; Howell Data
+  (require "laplace-approx.rkt")   ; Laplace Approximation Engine
+  (require "modelizer.rkt")        ; Interpret model specifications 
+  (plot-height 300) (plot-width 300)
+  ;;
+  ;; Fit the first 20 heights
+  ;;
+  
+  ;; grab the first 20 adult heights, just to get started, and help w/ testing
+  (define first-20-heights (in-vector adult-heights 0 20))
+  ;; for variety, select a random 20 adult heights
+  #;(define random-20-heights (take (shuffle (vector->list adult-heights)) 20))
+  ;; non-normalized log posterior (compositionally constructed)
+  (define lnpf20 (make-joint first-20-heights 'log))
+
+  (define mlnpf20 
+    (make-log-compatibility-function
+     `(model
+       [type-decls [i Row]]
+       [var-decls  [(h i) Number] [μ Number] [σ Number]]
+       [var-defs   [(h i) . ~ . (normal μ σ)]
+                   [μ     . ~ . (normal 178 20)]
+                   [σ     . ~ . (uniform 0 50)]])
+     (extend-env empty-env 'h (for/vector ([f first-20-heights]) f))
+     ))
+    
+  (define laf20 (time (laplace-approx lnpf20 '((140 160) (4 20)))))
+  (define mlaf20 (time (laplace-approx (λ (μ σ) (mlnpf20 `(,μ ,σ)))
+                                 '((140 160) (4 20)))))
+
+  (define qpdff20 (lapprox-pdf laf20))
+  (define mqpdff20 (lapprox-pdf mlaf20))
+
+  (define qp3df20
+    (plot3d (surface3d qpdff20 140 160 4 20)
+            #:title
+            "Approximate Posterior Normal Distributions of Heights (n=20)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Probability"))
+
+  (define mqp3df20
+    (plot3d (surface3d mqpdff20 140 160 4 20)
+            #:title
+            "Approximate Posterior Normal Distributions of Heights (n=20)(*)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Probability"))
+
+  ;; given non-normalized log posterior and mode,
+  ;; produce unit-normalized posterior
+  (define (make-updf nnlp la)
+    (let ([mx (apply nnlp (lapprox-means la))])
+      (with-arity-of nnlp
+        (λ x*
+          (exp (- (apply nnlp x*) mx))))))
+    
+  ;; for comparison: unit-normalized posterior
+  (define unpostf20 (make-updf lnpf20 laf20))
+  (define unp3df20
+    (plot3d (surface3d unpostf20 140 160 4 20)
+            #:title
+            "Relative Posterior Normal Distributions of Heights (n=20)"
+            #:x-label "Mean (μ) in cm"
+            #:y-label "Standard Deviation (σ) in cm"
+            #:z-label "Relative Plausibility"))
+
+  (list unp3df20 qp3df20 mqp3df20) ;; to see them juxtaposed
+
+  )
