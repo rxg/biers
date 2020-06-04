@@ -13,7 +13,7 @@
 (require math/matrix)
 (require ffi/unsafe)
 ;;
-;; laplace-approx.rkt - Laplacian Approximation of posterior distributions
+;; laplace-approx.rkt - Laplacian Approximation of Posterior Distributions
 ;;
 ;; Author: Ron Garcia <rxg@cs.ubc.ca>
 ;; Date: December 15, 2018
