@@ -144,7 +144,7 @@
       [type-decls [i Row]]
       [var-decls  [(h i) Number] [(μ i) Number] [α Number] [βm Number]
                   [σ Number] [(m i) Number]]
-      [var-defs   [(h i) . ~ . (normal μ σ)]
+      [var-defs   [(h i) . ~ . (normal (μ i) σ)]
                   [(μ i) . = . (+ α (* βm (m i)))]
                   [α     . ~ . (normal 178 20)]
                   [βm    . ~ . (normal 0 1)]
@@ -159,9 +159,9 @@
   (define ex4
     `(model
       [type-decls [i Row] [j Sex (Enum 'male 'female)]]
-      [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex]
-                  [σ Number] [(m i) Number]]
-      [var-defs   [(h i) . ~ . (normal μ σ)]
+      [var-decls  [(h i) Number] [(μ i) Number] [(α j) Number] [(sex i) Sex] 
+                  [σ Number]]
+      [var-defs   [(h i) . ~ . (normal (μ i) σ)]
                   [(μ i) . = . (α (sex i))]
                   [(α j) . ~ . (normal 178 20)]
                   [σ     . ~ . (uniform 0 50)]
