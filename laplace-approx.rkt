@@ -27,7 +27,7 @@
 ;; A few web pages:
 ;; http://www.stat.cmu.edu/~ryurko/post/bayesian-baby-steps-normal-next-steps/
 ;; http://www.sumsar.net/blog/2013/11/easy-laplace-approximation/
-
+;; https://www.johndcook.com/blog/2017/12/19/laplace-approx-logistic/
 
 ;; Helper Function
 ;; arity-respecting compose function (because compose does not...)
